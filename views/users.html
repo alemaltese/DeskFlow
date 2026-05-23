@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Utenti — DeskFlow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">D</div>
+            <div class="brand-name">
+                DeskFlow
+                <small>Helpdesk &amp; Ticketing</small>
+            </div>
+        </div>
+
+        <div class="side-section-label">Workspace</div>
+        <nav class="sidebar-nav">
+            <a href="/dashboard.html" id="nav-dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
+            <a href="/analytics.html" id="nav-analytics"><i class="fa-solid fa-chart-pie"></i> Statistiche</a>
+            <a href="/users.html" id="nav-users" class="active"><i class="fa-solid fa-users-gear"></i> Utenti</a>
+        </nav>
+
+        <div class="side-section-label">Account</div>
+        <nav class="sidebar-nav" style="flex:0;">
+            <a href="/profile.html" id="nav-profile"><i class="fa-solid fa-user"></i> Il mio profilo</a>
+            <a href="#" id="btnLogout"><i class="fa-solid fa-right-from-bracket"></i> Esci</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="avatar-circle" id="userAvatar">--</div>
+                <div class="meta">
+                    <div class="name" id="userNameDisplay">Caricamento...</div>
+                    <div class="role" id="userRoleDisplay"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+        <div class="topbar">
+            <h1>Utenti</h1>
+            <div class="spacer"></div>
+            <div class="avatar-circle" id="userAvatar" style="width:32px;height:32px;font-size:12px;">--</div>
+            <span id="userNameDisplay" style="font-size:13px;font-weight:500;color:var(--text-2);">Caricamento...</span>
+        </div>
+
+        <div class="content">
+            <div class="page-header">
+                <div>
+                    <h2>Gestione Utenti</h2>
+                    <p>Amministra gli account, modifica anagrafiche e ruoli.</p>
+                </div>
+                <div class="actions">
+                    <button id="btnNewUser" class="btn btn-primary">
+                        <i class="fa-solid fa-user-plus"></i> Nuovo Utente
+                    </button>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:0;">
+                <div class="table-container">
+                    <table id="usersTable" class="t">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome Completo</th>
+                                <th>Email</th>
+                                <th>Ruolo</th>
+                                <th>Creato Il</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New User Modal -->
+<div id="newUserModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-head">
+            <h3>Crea Nuovo Utente</h3>
+        </div>
+        <div class="modal-body">
+            <form id="newUserForm">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="field">
+                        <label for="new_first_name">Nome</label>
+                        <input type="text" id="new_first_name" class="input" required>
+                    </div>
+                    <div class="field">
+                        <label for="new_last_name">Cognome</label>
+                        <input type="text" id="new_last_name" class="input" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="new_email">Email</label>
+                    <input type="email" id="new_email" class="input" required>
+                </div>
+                <div class="field">
+                    <label for="new_role">Ruolo</label>
+                    <select id="new_role" class="input">
+                        <option value="utente">Utente</option>
+                        <option value="operatore">Operatore</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="new_password">Password</label>
+                    <input type="password" id="new_password" class="input" placeholder="Min. 8 caratteri" required>
+                </div>
+                <div class="modal-foot" style="margin:0 -22px -22px;padding:14px 22px;border-top:1px solid var(--border);background:var(--bg-subtle);display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
+                    <button type="button" id="btnCancelNew" class="btn btn-ghost">Annulla</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Crea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-head">
+            <h3>Modifica Utente</h3>
+        </div>
+        <div class="modal-body">
+            <form id="editUserForm">
+                <input type="hidden" id="edit_id">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="field">
+                        <label for="edit_first_name">Nome</label>
+                        <input type="text" id="edit_first_name" class="input" required>
+                    </div>
+                    <div class="field">
+                        <label for="edit_last_name">Cognome</label>
+                        <input type="text" id="edit_last_name" class="input" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="edit_email">Email</label>
+                    <input type="email" id="edit_email" class="input" required>
+                </div>
+                <div class="field">
+                    <label for="edit_role">Ruolo</label>
+                    <select id="edit_role" class="input">
+                        <option value="utente">Utente</option>
+                        <option value="operatore">Operatore</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="edit_password">Nuova Password</label>
+                    <input type="password" id="edit_password" class="input" placeholder="Lascia vuoto per non cambiarla">
+                </div>
+                <div class="modal-foot" style="margin:0 -22px -22px;padding:14px 22px;border-top:1px solid var(--border);background:var(--bg-subtle);display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">
+                    <button type="button" id="btnCancelEdit" class="btn btn-ghost">Annulla</button>
+                    <button type="submit" class="btn btn-primary">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="/js/toast.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/users.js"></script>
+</body>
+</html>

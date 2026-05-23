@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeskFlow — Helpdesk & Ticketing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --accent: #4f46e5;
+            --accent2: #7c3aed;
+            --text: #111827;
+            --text-2: #374151;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --bg: #f6f5f1;
+            --surface: #ffffff;
+            --r: 12px;
+        }
+        body { font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--bg); line-height: 1.6; }
+        a { text-decoration: none; color: inherit; }
+
+        /* ── NAVBAR ── */
+        .navbar {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 0;
+        }
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 2rem; width: 100%; }
+        .nav-inner { display: flex; justify-content: space-between; align-items: center; }
+        .nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--text); }
+        .brand-mark {
+            width: 32px; height: 32px; background: var(--accent); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; font-size: 16px;
+        }
+        .nav-actions { display: flex; gap: 8px; align-items: center; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
+        .btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+        .btn-ghost:hover { background: var(--bg); }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; box-shadow: 0 2px 12px rgba(79,70,229,.3); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(79,70,229,.4); }
+        .btn-lg { padding: 12px 28px; font-size: 15px; border-radius: 10px; }
+        .btn-outline { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.3); }
+        .btn-outline:hover { background: rgba(255,255,255,.1); }
+
+        /* ── HERO ── */
+        .hero {
+            background: linear-gradient(150deg, #0d1117 0%, #111827 45%, #1e1b4b 100%);
+            position: relative; overflow: hidden;
+            padding: 100px 0 90px;
+            text-align: center;
+        }
+        .hero::before {
+            content: '';
+            position: absolute; top: -120px; right: -80px;
+            width: 500px; height: 500px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(99,102,241,.2) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero::after {
+            content: '';
+            position: absolute; inset: 0;
+            background-image: radial-gradient(rgba(255,255,255,.055) 1.5px, transparent 1.5px);
+            background-size: 28px 28px;
+            pointer-events: none;
+        }
+        .hero-inner { position: relative; z-index: 1; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.3);
+            color: #a5b4fc; padding: 6px 16px; border-radius: 999px;
+            font-size: 12.5px; font-weight: 500; margin-bottom: 28px;
+        }
+        .hero-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; flex-shrink: 0; }
+        .hero h1 {
+            font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 700;
+            line-height: 1.1; letter-spacing: -0.03em;
+            color: #fff; margin-bottom: 20px;
+        }
+        .hero h1 span {
+            background: linear-gradient(135deg, #818cf8, #c084fc);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .hero-sub {
+            font-size: 1.1rem; color: rgba(255,255,255,.55);
+            max-width: 560px; margin: 0 auto 36px; line-height: 1.7;
+        }
+        .hero-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        .hero-stats {
+            display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;
+            margin-top: 60px; padding-top: 48px;
+            border-top: 1px solid rgba(255,255,255,.08);
+        }
+        .hero-stat-item { text-align: center; }
+        .hero-stat-value { font-size: 2rem; font-weight: 700; color: #fff; letter-spacing: -0.02em; font-family: 'DM Sans', sans-serif; }
+        .hero-stat-label { font-size: 12px; color: rgba(255,255,255,.4); margin-top: 2px; }
+
+        /* ── HOW IT WORKS ── */
+        .how-section { padding: 80px 0; background: var(--surface); }
+        .section-label {
+            display: inline-block; background: rgba(79,70,229,.08); color: var(--accent);
+            border: 1px solid rgba(79,70,229,.15); padding: 4px 14px;
+            border-radius: 999px; font-size: 12px; font-weight: 600;
+            letter-spacing: .04em; text-transform: uppercase; margin-bottom: 14px;
+        }
+        .section-title { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 10px; }
+        .section-sub { color: var(--text-muted); font-size: 15px; max-width: 500px; }
+        .section-head { text-align: center; margin-bottom: 52px; }
+        .section-head .section-sub { margin: 0 auto; }
+
+        .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; position: relative; }
+        .steps::before {
+            content: '';
+            position: absolute; top: 28px; left: calc(16.66% + 12px); right: calc(16.66% + 12px);
+            height: 1px; background: linear-gradient(90deg, var(--accent), var(--accent2));
+            opacity: .25;
+        }
+        .step { text-align: center; padding: 32px 24px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); }
+        .step-num {
+            width: 52px; height: 52px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff; font-size: 18px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 18px; box-shadow: 0 4px 16px rgba(79,70,229,.35);
+        }
+        .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+        .step p { font-size: 13.5px; color: var(--text-muted); line-height: 1.6; }
+
+        /* ── FEATURES ── */
+        .features-section { padding: 80px 0; background: var(--bg); }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .feature-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--r); padding: 28px 24px;
+            transition: box-shadow .2s, transform .2s;
+        }
+        .feature-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.08); transform: translateY(-2px); }
+        .feature-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; margin-bottom: 16px; flex-shrink: 0;
+        }
+        .fi-indigo  { background: rgba(79,70,229,.1);  color: #4f46e5; }
+        .fi-purple  { background: rgba(124,58,237,.1); color: #7c3aed; }
+        .fi-green   { background: rgba(16,185,129,.1); color: #059669; }
+        .fi-amber   { background: rgba(245,158,11,.1); color: #d97706; }
+        .fi-blue    { background: rgba(59,130,246,.1); color: #2563eb; }
+        .fi-rose    { background: rgba(244,63,94,.1);  color: #e11d48; }
+        .feature-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+        .feature-card p { font-size: 13.5px; color: var(--text-muted); line-height: 1.65; }
+
+        /* ── ROLES ── */
+        .roles-section { padding: 80px 0; background: var(--surface); }
+        .roles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .role-card {
+            border-radius: var(--r); padding: 32px 28px;
+            border: 1px solid var(--border);
+        }
+        .role-card.admin   { background: linear-gradient(135deg, #faf5ff, #ede9fe); border-color: #ddd6fe; }
+        .role-card.operatore { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-color: #bfdbfe; }
+        .role-card.utente  { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-color: #bbf7d0; }
+        .role-badge {
+            display: inline-block; padding: 3px 12px; border-radius: 999px;
+            font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+        .role-card.admin   .role-badge { background: #7c3aed; color: #fff; }
+        .role-card.operatore .role-badge { background: #2563eb; color: #fff; }
+        .role-card.utente  .role-badge { background: #059669; color: #fff; }
+        .role-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+        .role-card ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+        .role-card ul li { font-size: 13.5px; color: var(--text-2); display: flex; align-items: flex-start; gap: 8px; }
+        .role-card ul li::before { content: '✓'; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+        .role-card.admin   ul li::before { color: #7c3aed; }
+        .role-card.operatore ul li::before { color: #2563eb; }
+        .role-card.utente  ul li::before { color: #059669; }
+
+        /* ── CTA ── */
+        .cta-section {
+            background: linear-gradient(135deg, #0d1117 0%, #1e1b4b 100%);
+            padding: 80px 0; text-align: center; position: relative; overflow: hidden;
+        }
+        .cta-section::after {
+            content: '';
+            position: absolute; inset: 0;
+            background-image: radial-gradient(rgba(255,255,255,.04) 1.5px, transparent 1.5px);
+            background-size: 28px 28px;
+            pointer-events: none;
+        }
+        .cta-inner { position: relative; z-index: 1; }
+        .cta-section h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 700; color: #fff; letter-spacing: -0.02em; margin-bottom: 12px; }
+        .cta-section p { color: rgba(255,255,255,.5); font-size: 15px; max-width: 480px; margin: 0 auto 32px; }
+
+        /* ── FOOTER ── */
+        .footer { background: #0e1116; padding: 40px 0; border-top: 1px solid rgba(255,255,255,.06); }
+        .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .footer-logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: #fff; }
+        .footer-logo .brand-mark { width: 28px; height: 28px; font-size: 14px; }
+        .footer-links { display: flex; gap: 20px; }
+        .footer-links a { font-size: 13px; color: rgba(255,255,255,.4); transition: color .15s; }
+        .footer-links a:hover { color: rgba(255,255,255,.8); }
+        .footer-copy { font-size: 12px; color: rgba(255,255,255,.25); }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 768px) {
+            .steps, .roles-grid { grid-template-columns: 1fr; }
+            .steps::before { display: none; }
+            .hero-stats { gap: 24px; }
+            .footer-inner { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="container nav-inner">
+        <div class="nav-logo">
+            <div class="brand-mark">D</div>
+            DeskFlow
+        </div>
+        <div class="nav-actions">
+            <a href="/login.html" class="btn btn-ghost">Accedi</a>
+            <a href="/register.html" class="btn btn-primary">Inizia ora <i class="fa-solid fa-arrow-right" style="font-size:12px;"></i></a>
+        </div>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="container hero-inner">
+        <div class="hero-badge">
+            <span class="hero-badge-dot"></span>
+            Sistema attivo · 99.9% uptime garantito
+        </div>
+        <h1>Il supporto clienti<br>che il tuo team <span>merita davvero</span></h1>
+        <p class="hero-sub">
+            Gestisci ticket, coordina operatori e risolvi problemi velocemente.
+            Un sistema di helpdesk progettato per essere semplice, potente e bello.
+        </p>
+        <div class="hero-cta">
+            <a href="/register.html" class="btn btn-primary btn-lg">
+                Crea account gratuito <i class="fa-solid fa-arrow-right" style="font-size:13px;"></i>
+            </a>
+            <a href="/login.html" class="btn btn-outline btn-lg">Accedi</a>
+        </div>
+
+        <div class="hero-stats">
+            <div class="hero-stat-item">
+                <div class="hero-stat-value">4.6h</div>
+                <div class="hero-stat-label">Tempo medio prima risposta</div>
+            </div>
+            <div class="hero-stat-item">
+                <div class="hero-stat-value">27.6h</div>
+                <div class="hero-stat-label">Tempo medio di risoluzione</div>
+            </div>
+            <div class="hero-stat-item">
+                <div class="hero-stat-value">99.9%</div>
+                <div class="hero-stat-label">Uptime garantito</div>
+            </div>
+            <div class="hero-stat-item">
+                <div class="hero-stat-value">3</div>
+                <div class="hero-stat-label">Ruoli distinti con permessi</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+    <div class="container">
+        <div class="section-head">
+            <span class="section-label">Come funziona</span>
+            <h2 class="section-title">Tre passi per risolvere tutto</h2>
+            <p class="section-sub">Dal primo messaggio alla risoluzione, ogni passo è tracciato e notificato in automatico.</p>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h3>L'utente apre un ticket</h3>
+                <p>Descrive il problema, sceglie categoria e priorità, allega fino a 3 file. Riceve subito una email di conferma.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h3>L'operatore lo gestisce</h3>
+                <p>Il sistema assegna automaticamente il ticket all'operatore con meno carico. L'operatore risponde, aggiunge note interne e aggiorna lo stato.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h3>Il problema viene risolto</h3>
+                <p>L'utente riceve una notifica email, può chiudere il ticket e lasciare una valutazione da 1 a 5 stelle.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features-section">
+    <div class="container">
+        <div class="section-head">
+            <span class="section-label">Funzionalità</span>
+            <h2 class="section-title">Tutto ciò che ti serve, niente di superfluo</h2>
+            <p class="section-sub">Strumenti pensati per team di supporto che vogliono lavorare bene senza sprecare tempo.</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon fi-indigo"><i class="fa-solid fa-bolt"></i></div>
+                <h3>Assegnazione automatica bilanciata</h3>
+                <p>Ogni nuovo ticket viene assegnato all'operatore con meno ticket aperti. In caso di parità, la scelta è casuale per garantire equità.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon fi-purple"><i class="fa-solid fa-chart-pie"></i></div>
+                <h3>Statistiche in tempo reale</h3>
+                <p>Dashboard con KPI, grafici per priorità, performance per operatore e tempi medi di risposta e risoluzione calcolati automaticamente.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon fi-green"><i class="fa-solid fa-envelope-open-text"></i></div>
+                <h3>Notifiche email automatiche</h3>
+                <p>Email di conferma, aggiornamento e risoluzione inviate automaticamente ad ogni evento rilevante del ciclo di vita del ticket.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon fi-amber"><i class="fa-solid fa-paperclip"></i></div>
+                <h3>Allegati multipli</h3>
+                <p>Fino a 3 file per ticket (immagini e PDF, max 5 MB ciascuno). Visibili direttamente nella pagina del ticket.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon fi-blue"><i class="fa-solid fa-lock"></i></div>
+                <h3>Note interne riservate</h3>
+                <p>Gli operatori possono comunicare tra loro con note interne invisibili agli utenti, mantenendo le conversazioni pulite e professionali.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon fi-rose"><i class="fa-solid fa-shield-halved"></i></div>
+                <h3>Ruoli e permessi granulari</h3>
+                <p>Tre ruoli distinti — utente, operatore, admin — ognuno con visibilità e azioni ben definite. I dati privati restano privati.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ROLES -->
+<section class="roles-section">
+    <div class="container">
+        <div class="section-head">
+            <span class="section-label">Ruoli</span>
+            <h2 class="section-title">Un sistema per ogni membro del team</h2>
+            <p class="section-sub">Tre profili con permessi distinti, progettati per collaborare senza sovrapposizioni.</p>
+        </div>
+        <div class="roles-grid">
+            <div class="role-card admin">
+                <span class="role-badge">Admin</span>
+                <h3>Controllo totale</h3>
+                <ul>
+                    <li>Gestisce utenti e operatori</li>
+                    <li>Riassegna ticket a qualsiasi operatore</li>
+                    <li>Accede a statistiche complete e workload</li>
+                    <li>Visibilità su tutti i ticket del sistema</li>
+                    <li>Riceve notifiche su ticket riaperti</li>
+                </ul>
+            </div>
+            <div class="role-card operatore">
+                <span class="role-badge">Operatore</span>
+                <h3>Gestione efficiente</h3>
+                <ul>
+                    <li>Vede i ticket assegnati a lui</li>
+                    <li>Cambia stato: in lavorazione e risolto</li>
+                    <li>Aggiunge commenti pubblici e note interne</li>
+                    <li>Accede alle proprie statistiche personali</li>
+                    <li>Riceve email per nuovi ticket e commenti</li>
+                </ul>
+            </div>
+            <div class="role-card utente">
+                <span class="role-badge">Utente</span>
+                <h3>Supporto semplice</h3>
+                <ul>
+                    <li>Apre ticket con categoria e priorità</li>
+                    <li>Allega file al ticket (fino a 3)</li>
+                    <li>Segue la conversazione in tempo reale</li>
+                    <li>Chiude il ticket e lascia un voto</li>
+                    <li>Riceve email ad ogni aggiornamento</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <div class="container cta-inner">
+        <h2>Pronto a semplificare il supporto?</h2>
+        <p>Crea un account gratuito in meno di un minuto e apri il tuo primo ticket subito.</p>
+        <a href="/register.html" class="btn btn-primary btn-lg">
+            Inizia adesso — è gratis <i class="fa-solid fa-arrow-right" style="font-size:13px;"></i>
+        </a>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+    <div class="container footer-inner">
+        <div class="footer-logo">
+            <div class="brand-mark">D</div>
+            DeskFlow
+        </div>
+        <div class="footer-links">
+            <a href="/login.html">Accedi</a>
+            <a href="/register.html">Registrati</a>
+        </div>
+        <p class="footer-copy">© 2026 DeskFlow · Tutti i diritti riservati</p>
+    </div>
+</footer>
+
+</body>
+</html>

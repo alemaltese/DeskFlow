@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Il Mio Profilo — DeskFlow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">D</div>
+            <div class="brand-name">
+                DeskFlow
+                <small>Helpdesk &amp; Ticketing</small>
+            </div>
+        </div>
+
+        <div class="side-section-label">Workspace</div>
+        <nav class="sidebar-nav">
+            <a href="/dashboard.html" id="nav-dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
+            <a href="/analytics.html" id="nav-analytics" class="hidden"><i class="fa-solid fa-chart-pie"></i> Statistiche</a>
+            <a href="/users.html" id="nav-users" class="hidden"><i class="fa-solid fa-users-gear"></i> Utenti</a>
+        </nav>
+
+        <div class="side-section-label">Account</div>
+        <nav class="sidebar-nav" style="flex:0;">
+            <a href="/profile.html" id="nav-profile" class="active"><i class="fa-solid fa-user"></i> Il mio profilo</a>
+            <a href="#" id="btnLogout"><i class="fa-solid fa-right-from-bracket"></i> Esci</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="avatar-circle" id="userAvatar">--</div>
+                <div class="meta">
+                    <div class="name" id="userNameDisplay">Caricamento...</div>
+                    <div class="role" id="userRoleDisplay"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+        <div class="topbar">
+            <h1>Il Mio Profilo</h1>
+            <div class="spacer"></div>
+            <div class="avatar-circle" id="userAvatar" style="width:32px;height:32px;font-size:12px;">--</div>
+            <span id="userNameDisplay" style="font-size:13px;font-weight:500;color:var(--text-2);">Caricamento...</span>
+        </div>
+
+        <div class="content">
+            <div class="page-header" style="justify-content:center;text-align:center;">
+                <div>
+                    <h2>Il Mio Profilo</h2>
+                    <p>Gestisci le tue informazioni personali e la sicurezza dell'account.</p>
+                </div>
+            </div>
+
+            <div class="card padded" style="max-width:560px;margin:0 auto;">
+                <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:18px;">Dati Personali</div>
+                <form id="profileForm">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="field">
+                            <label for="prof_first_name">Nome</label>
+                            <input type="text" id="prof_first_name" class="input" required>
+                        </div>
+                        <div class="field">
+                            <label for="prof_last_name">Cognome</label>
+                            <input type="text" id="prof_last_name" class="input" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="prof_email">Email</label>
+                        <input type="email" id="prof_email" class="input" required>
+                    </div>
+
+                    <div style="border-top:1px solid var(--border);margin:20px 0 18px;"></div>
+                    <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:14px;">Sicurezza</div>
+                    <div class="field">
+                        <label for="prof_password">Nuova Password</label>
+                        <input type="password" id="prof_password" class="input" placeholder="Lascia vuoto per non cambiarla">
+                        <div class="hint">Almeno 8 caratteri. Lascia vuoto per mantenere la password attuale.</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px;">
+                        <i class="fa-solid fa-floppy-disk"></i> Salva Modifiche
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/toast.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/profile.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accedi — DeskFlow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        #errorMsg:not(:empty) {
+            background: #fee2e2; color: #b91c1c;
+            padding: 10px 12px; border-radius: 9px;
+            font-size: 13px; margin-bottom: 14px;
+        }
+    </style>
+</head>
+<body>
+<div class="auth">
+    <!-- Left panel -->
+    <div class="auth-side">
+        <div class="auth-brand">
+            <div class="brand-mark">D</div>
+            <div class="brand-name">
+                DeskFlow
+                <small>Helpdesk &amp; Ticketing</small>
+            </div>
+        </div>
+
+        <div class="auth-back-btn-wrap">
+            <a href="/" class="auth-back-btn">
+                <i class="fa-solid fa-arrow-left"></i> Torna al sito
+            </a>
+        </div>
+
+        <div class="auth-hero">
+            <div class="auth-badge">
+                <span class="auth-badge-dot"></span>
+                Sistema operativo · 99.98% uptime
+            </div>
+            <h1 class="auth-headline">
+                Supporto reso<br><span class="auth-headline-accent">semplice</span>.
+            </h1>
+            <p class="auth-subtext">
+                Un'unica coda condivisa per il team. Priorità chiare, conversazioni pulite, statistiche in tempo reale.
+            </p>
+            <div class="auth-stats">
+                <div class="auth-stat">
+                    <div class="auth-stat-value">4.6h</div>
+                    <div class="auth-stat-label">Tempo medio<br>di risposta</div>
+                </div>
+                <div class="auth-stat-divider"></div>
+                <div class="auth-stat">
+                    <div class="auth-stat-value">3</div>
+                    <div class="auth-stat-label">Livelli<br>di accesso</div>
+                </div>
+                <div class="auth-stat-divider"></div>
+                <div class="auth-stat">
+                    <div class="auth-stat-value">99.9%</div>
+                    <div class="auth-stat-label">Uptime<br>garantito</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="quote">
+            "Abbiamo dimezzato i tempi di risposta nei primi due mesi. La sidebar focalizzata fa un'enorme differenza."
+            <div class="quote-meta">
+                <div class="avatar sm" style="background:linear-gradient(135deg,#ec4899,#db2777);">EC</div>
+                <div>
+                    <div style="color:#fff;font-weight:500;">Elena Conti</div>
+                    <div>Responsabile IT · Studio Conti &amp; Partners</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right form -->
+    <div class="auth-form-wrap">
+        <div class="auth-form">
+            <div class="auth-tabs">
+                <button class="active" onclick="location.href='/login.html'">Accedi</button>
+                <button onclick="location.href='/register.html'">Registrati</button>
+            </div>
+
+            <h1>Bentornato</h1>
+            <p class="lead">Accedi al tuo workspace per gestire i ticket.</p>
+
+            <form id="loginForm">
+                <div id="errorMsg"></div>
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" class="input" placeholder="nome@azienda.it" required>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" class="input" placeholder="••••••••" required style="padding-right:38px;">
+                        <button type="button" class="toggle-password"><i class="fa-regular fa-eye"></i></button>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:4px;">
+                    Accedi a DeskFlow <i class="fa-solid fa-arrow-right" style="margin-left:6px;font-size:13px;"></i>
+                </button>
+            </form>
+
+            <p style="margin-top:20px;font-size:12px;color:var(--text-muted);text-align:center;">
+                Non hai un account? <a href="/register.html">Registrati qui</a>
+            </p>
+            <p style="margin-top:4px;font-size:11.5px;color:var(--text-muted);text-align:center;">
+                © 2026 DeskFlow · Tutti i diritti riservati
+            </p>
+        </div>
+    </div>
+</div>
+
+<script src="/js/auth.js"></script>
+</body>
+</html>

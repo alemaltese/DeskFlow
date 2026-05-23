@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — DeskFlow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">D</div>
+            <div class="brand-name">
+                DeskFlow
+                <small>Helpdesk &amp; Ticketing</small>
+            </div>
+        </div>
+
+        <div class="side-section-label">Workspace</div>
+        <nav class="sidebar-nav">
+            <a href="/dashboard.html" id="nav-dashboard" class="active"><i class="fa-solid fa-house"></i> Dashboard</a>
+            <a href="/analytics.html" id="nav-analytics" class="hidden"><i class="fa-solid fa-chart-pie"></i> Statistiche</a>
+            <a href="/users.html" id="nav-users" class="hidden"><i class="fa-solid fa-users-gear"></i> Utenti</a>
+        </nav>
+
+        <div class="side-section-label">Account</div>
+        <nav class="sidebar-nav" style="flex:0;">
+            <a href="/profile.html" id="nav-profile"><i class="fa-solid fa-user"></i> Il mio profilo</a>
+            <a href="#" id="btnLogout"><i class="fa-solid fa-right-from-bracket"></i> Esci</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="avatar-circle" id="userAvatar">--</div>
+                <div class="meta">
+                    <div class="name" id="userNameDisplay">Caricamento...</div>
+                    <div class="role" id="userRoleDisplay"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+        <div class="topbar">
+            <h1>Dashboard</h1>
+            <div class="spacer"></div>
+            <div class="avatar-circle" id="userAvatar" style="width:32px;height:32px;font-size:12px;">--</div>
+            <span id="userNameDisplay" style="font-size:13px;font-weight:500;color:var(--text-2);">Caricamento...</span>
+        </div>
+
+        <div class="content">
+            <div class="page-header">
+                <div>
+                    <h2>Dashboard Ticket</h2>
+                    <p>Panoramica del sistema di supporto.</p>
+                </div>
+                <div class="actions">
+                    <button id="btnNewTicket" class="btn btn-primary">
+                        <i class="fa-solid fa-plus"></i> Nuovo Ticket
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Stats -->
+            <div id="adminStats" class="kpi-grid hidden">
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon open"><i class="fa-solid fa-inbox"></i></div>
+                        <div class="label">Aperti</div>
+                    </div>
+                    <div class="value" id="statOpen">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon progress"><i class="fa-solid fa-arrows-rotate"></i></div>
+                        <div class="label">In Corso</div>
+                    </div>
+                    <div class="value" id="statProgress">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="label">Risolti</div>
+                    </div>
+                    <div class="value" id="statResolved">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon closed"><i class="fa-solid fa-box-archive"></i></div>
+                        <div class="label">Chiusi</div>
+                    </div>
+                    <div class="value" id="statClosed">0</div>
+                </div>
+            </div>
+
+            <!-- Operator Stats -->
+            <div id="operatorStats" class="kpi-grid hidden">
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon open"><i class="fa-solid fa-inbox"></i></div>
+                        <div class="label">Aperti Assegnati</div>
+                    </div>
+                    <div class="value" id="opStatOpen">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon progress"><i class="fa-solid fa-arrows-rotate"></i></div>
+                        <div class="label">In Corso</div>
+                    </div>
+                    <div class="value" id="opStatProgress">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="label">Risolti</div>
+                    </div>
+                    <div class="value" id="opStatResolved">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon closed"><i class="fa-solid fa-box-archive"></i></div>
+                        <div class="label">Chiusi</div>
+                    </div>
+                    <div class="value" id="opStatClosed">0</div>
+                </div>
+            </div>
+
+            <!-- User Stats -->
+            <div id="userStats" class="kpi-grid hidden">
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon open"><i class="fa-solid fa-clock"></i></div>
+                        <div class="label">In Attesa</div>
+                    </div>
+                    <div class="value" id="uStatOpen">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon progress"><i class="fa-solid fa-arrows-rotate"></i></div>
+                        <div class="label">In Lavorazione</div>
+                    </div>
+                    <div class="value" id="uStatProgress">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="label">Da Confermare</div>
+                    </div>
+                    <div class="value" id="uStatResolved">0</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-head">
+                        <div class="kpi-icon closed"><i class="fa-solid fa-box-archive"></i></div>
+                        <div class="label">Archiviati</div>
+                    </div>
+                    <div class="value" id="uStatClosed">0</div>
+                </div>
+            </div>
+
+            <!-- Unassigned Queue (Admin) -->
+            <div id="unassignedTicketsBlock" class="card hidden" style="margin-bottom:16px;">
+                <div class="card-header">
+                    <div>
+                        <h3 style="color:var(--open-fg);display:flex;align-items:center;gap:7px;">
+                            <i class="fa-solid fa-inbox"></i> Ticket da Assegnare
+                        </h3>
+                        <div class="sub">Ticket in attesa di un operatore</div>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="unassignedTable" class="t">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Titolo</th>
+                                <th>Priorità</th>
+                                <th>Creatore</th>
+                                <th>Assegna a</th>
+                                <th>Azione</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <select id="filterStatus" class="input" style="width:auto;padding:6px 28px 6px 10px;font-size:13px;">
+                    <option value="">Tutti gli Stati</option>
+                    <option value="aperto">Aperto</option>
+                    <option value="in_corso">In Corso</option>
+                    <option value="risolto">Risolto</option>
+                    <option value="chiuso">Chiuso</option>
+                </select>
+                <select id="filterCategory" class="input" style="width:auto;padding:6px 28px 6px 10px;font-size:13px;">
+                    <option value="">Tutte le Categorie</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Software">Software</option>
+                    <option value="Rete">Rete</option>
+                    <option value="Altro">Altro</option>
+                </select>
+                <select id="filterPriority" class="input" style="width:auto;padding:6px 28px 6px 10px;font-size:13px;">
+                    <option value="">Tutte le Priorità</option>
+                    <option value="urgente">Urgente</option>
+                    <option value="alta">Alta</option>
+                    <option value="media">Media</option>
+                    <option value="bassa">Bassa</option>
+                </select>
+                <div id="filterOperatorBlock" class="hidden">
+                    <select id="filterOperator" class="input" style="width:auto;padding:6px 28px 6px 10px;font-size:13px;">
+                        <option value="">Tutti gli Operatori</option>
+                        <option value="null">Non Assegnati</option>
+                    </select>
+                </div>
+                <select id="filterSort" class="input" style="width:auto;padding:6px 28px 6px 10px;font-size:13px;">
+                    <option value="newest">Più Recenti</option>
+                    <option value="oldest">Meno Recenti</option>
+                </select>
+                <button id="btnApplyFilters" class="btn btn-ghost btn-sm">
+                    <i class="fa-solid fa-filter"></i> Filtra
+                </button>
+            </div>
+
+            <!-- Tickets Table -->
+            <div class="card" style="margin-bottom:0;">
+                <div class="table-container">
+                    <table id="ticketsTable" class="t">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Titolo</th>
+                                <th>Categoria</th>
+                                <th>Priorità</th>
+                                <th>Stato</th>
+                                <th id="colCreator" class="hidden">Creatore</th>
+                                <th>Assegnato a</th>
+                                <th>Aperto il</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- /content -->
+    </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- New Ticket Modal -->
+<div id="newTicketModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-head">
+            <h3>Crea Nuovo Ticket</h3>
+        </div>
+        <div class="modal-body">
+            <form id="newTicketForm">
+                <div class="field">
+                    <label>Titolo</label>
+                    <input type="text" id="ntTitle" class="input" placeholder="Descrivi il problema brevemente..." required>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="field">
+                        <label>Categoria</label>
+                        <select id="ntCategory" class="input" required>
+                            <option value="Hardware">Hardware</option>
+                            <option value="Software">Software</option>
+                            <option value="Rete">Rete</option>
+                            <option value="Altro">Altro</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Priorità</label>
+                        <select id="ntPriority" class="input" required>
+                            <option value="bassa">Bassa</option>
+                            <option value="media">Media</option>
+                            <option value="alta">Alta</option>
+                            <option value="urgente">Urgente</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Descrizione</label>
+                    <textarea id="ntDescription" class="input" placeholder="Spiega il problema nel dettaglio..." required></textarea>
+                </div>
+                <div class="field">
+                    <label>Allegati <span style="color:var(--text-muted);font-weight:400;">(max 3 file · 5 MB ciascuno)</span></label>
+                    <input type="file" id="ntAttachments" class="input" multiple accept=".jpg,.jpeg,.png,.gif,.pdf" style="padding:8px;">
+                </div>
+                <div class="modal-foot" style="margin:0 -22px -22px;padding:14px 22px;border-top:1px solid var(--border);background:var(--bg-subtle);display:flex;justify-content:flex-end;gap:8px;">
+                    <button type="button" id="btnCancelModal" class="btn btn-ghost">Annulla</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Crea Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="/js/toast.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

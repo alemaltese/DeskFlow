@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dettagli Ticket — DeskFlow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">D</div>
+            <div class="brand-name">
+                DeskFlow
+                <small>Helpdesk &amp; Ticketing</small>
+            </div>
+        </div>
+
+        <div class="side-section-label">Workspace</div>
+        <nav class="sidebar-nav">
+            <a href="/dashboard.html" id="nav-dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
+            <a href="/analytics.html" id="nav-analytics" class="hidden"><i class="fa-solid fa-chart-pie"></i> Statistiche</a>
+            <a href="/users.html" id="nav-users" class="hidden"><i class="fa-solid fa-users-gear"></i> Utenti</a>
+        </nav>
+
+        <div class="side-section-label">Account</div>
+        <nav class="sidebar-nav" style="flex:0;">
+            <a href="/profile.html" id="nav-profile"><i class="fa-solid fa-user"></i> Il mio profilo</a>
+            <a href="#" id="btnLogout"><i class="fa-solid fa-right-from-bracket"></i> Esci</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="avatar-circle" id="userAvatar">--</div>
+                <div class="meta">
+                    <div class="name" id="userNameDisplay">Caricamento...</div>
+                    <div class="role" id="userRoleDisplay"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+        <div class="topbar">
+            <div class="crumbs">
+                <a href="/dashboard.html" style="color:var(--text-muted);font-size:13px;">Dashboard</a>
+                <span class="sep">/</span>
+                <span style="font-size:13px;">Dettaglio Ticket</span>
+            </div>
+            <div class="spacer"></div>
+            <a href="/dashboard.html" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-arrow-left"></i> Torna alla Dashboard
+            </a>
+            <div class="avatar-circle" id="userAvatar" style="width:32px;height:32px;font-size:12px;">--</div>
+            <span id="userNameDisplay" style="font-size:13px;font-weight:500;color:var(--text-2);">Caricamento...</span>
+        </div>
+
+        <div class="content">
+            <!-- Ticket header card -->
+            <div class="card" style="margin-bottom:20px;">
+                <div style="padding:20px 22px;">
+                    <div class="ticket-header">
+                        <div style="flex:1;">
+                            <h2 id="tTitle">Caricamento...</h2>
+                            <div class="meta-row">
+                                <span><span class="mono" id="tId"></span></span>
+                                <span id="tCategory"></span>
+                                <span id="tPriority"></span>
+                                <span id="tStatus"></span>
+                                <span>Creato da <strong id="tCreator"></strong></span>
+                                <span id="tCreatedAt" style="color:var(--text-muted);"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-size:14px;line-height:1.65;color:var(--text);white-space:pre-wrap;" id="tDescription"></div>
+
+                    <!-- Rating block -->
+                    <div id="tRatingBlock"></div>
+
+                    <!-- Attachments -->
+                    <div id="attachmentsContainer" class="hidden" style="margin-top:16px;padding:14px;background:var(--bg-subtle);border-radius:var(--r);border:1px solid var(--border);">
+                        <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);font-weight:500;margin-bottom:8px;">Allegati</div>
+                        <div id="attachmentsList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                    </div>
+
+                    <!-- Operator / Admin Controls -->
+                    <div id="operatorControls" class="hidden" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);">Azioni Staff</span>
+                        <select id="updateStatusSelect" class="input" style="width:auto;padding:7px 28px 7px 10px;font-size:13px;">
+                            <option value="aperto">Aperto</option>
+                            <option value="in_corso">In Corso</option>
+                            <option value="risolto">Risolto</option>
+                            <option value="chiuso">Chiuso</option>
+                        </select>
+                        <button id="btnUpdateStatus" class="btn btn-primary btn-sm">Aggiorna Stato</button>
+
+                        <div id="adminReassignBlock" class="hidden" style="margin-left:12px;display:flex;align-items:center;gap:8px;">
+                            <select id="reassignSelect" class="input" style="width:auto;padding:7px 28px 7px 10px;font-size:13px;"></select>
+                            <button id="btnReassign" class="btn btn-ghost btn-sm">Riassegna</button>
+                        </div>
+                    </div>
+
+                    <!-- User Controls -->
+                    <div id="userControls" class="hidden" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+                        <div id="userActionButtons" style="display:flex;gap:8px;align-items:center;">
+                            <button id="btnCloseTicket" class="btn btn-ghost btn-sm">
+                                <i class="fa-solid fa-circle-check"></i> Conferma Risolto (Chiudi)
+                            </button>
+                            <button id="btnReopenTicket" class="btn btn-ghost btn-sm hidden">
+                                <i class="fa-solid fa-rotate-left"></i> Riapri Ticket
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail grid: conversation + timeline -->
+            <div class="detail-grid">
+                <!-- Left: Comments -->
+                <div>
+                    <div style="font-size:15px;font-weight:600;margin-bottom:14px;">Conversazione</div>
+                    <div id="commentsList" style="margin-bottom:16px;"></div>
+
+                    <!-- Reply form -->
+                    <div class="card reply-box" style="margin-bottom:0;padding:18px 20px;">
+                        <form id="commentForm">
+                            <div class="field" style="margin-bottom:10px;">
+                                <label>Aggiungi un commento</label>
+                                <textarea id="commentContent" class="input" placeholder="Scrivi qui la tua risposta..." style="min-height:90px;"></textarea>
+                            </div>
+                            <div class="toolbar">
+                                <div id="internalNoteGroup" class="hidden">
+                                    <label class="note-toggle" style="cursor:pointer;">
+                                        <input type="checkbox" id="isInternal" style="display:none;">
+                                        <i class="fa-solid fa-lock" style="font-size:12px;"></i>
+                                        Nota Interna (solo staff)
+                                    </label>
+                                </div>
+                                <div class="spacer"></div>
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="fa-solid fa-paper-plane"></i> Invia Risposta
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Right: Timeline panel -->
+                <div class="detail-side">
+                    <div class="panel">
+                        <div class="panel-head">Cronologia</div>
+                        <div class="panel-body">
+                            <div class="timeline" id="historyTimeline"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /content -->
+    </div><!-- /main -->
+</div><!-- /layout -->
+
+<script src="/js/toast.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/ticket.js"></script>
+</body>
+</html>
