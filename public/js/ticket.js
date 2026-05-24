@@ -1,6 +1,16 @@
-let currentUser = null;
+let currentUser     = null;
 let currentTicketId = null;
-let ticketData = null;
+let ticketData      = null;
+
+// Escape HTML entities to prevent XSS when inserting user data into innerHTML
+function esc(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     currentTicketId = new URLSearchParams(window.location.search).get('id');
@@ -34,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('commentForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const content = document.getElementById('commentContent').value;
+        const content      = document.getElementById('commentContent').value;
         const isInternalEl = document.getElementById('isInternal');
         if (!content.trim()) return;
 
@@ -83,8 +93,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.getElementById('btnCloseTicket')?.addEventListener('click', () => updateStatus('closed'));
-    document.getElementById('btnReopenTicket')?.addEventListener('click', () => updateStatus('open'));
+    document.getElementById('btnCloseTicket')?.addEventListener('click',  () => updateStatus('chiuso'));
+    document.getElementById('btnReopenTicket')?.addEventListener('click', () => updateStatus('aperto'));
 });
 
 async function fetchTicketDetails() {
@@ -102,10 +112,11 @@ async function fetchTicketDetails() {
 function renderTicket(data) {
     const t = data.ticket;
 
-    document.getElementById('tTitle').textContent    = t.title;
-    document.getElementById('tId').textContent       = `#${t.id}`;
-    document.getElementById('tCategory').textContent = t.category;
-    document.getElementById('tCreator').textContent  = t.creator_name;
+    // Use textContent for all plain-text fields — immune to XSS
+    document.getElementById('tTitle').textContent       = t.title;
+    document.getElementById('tId').textContent          = `#${t.id}`;
+    document.getElementById('tCategory').textContent    = t.category;
+    document.getElementById('tCreator').textContent     = t.creator_name;
     document.getElementById('tDescription').textContent = t.description;
 
     if (t.created_at) {
@@ -114,8 +125,9 @@ function renderTicket(data) {
         });
     }
 
-    document.getElementById('tPriority').innerHTML = `<span class="badge priority-${t.priority}">${t.priority}</span>`;
-    document.getElementById('tStatus').innerHTML   = `<span class="badge status-${t.status}">${t.status.replace('_', ' ')}</span>`;
+    // Badge classes use server-controlled enum values (safe); esc() as extra defence
+    document.getElementById('tPriority').innerHTML = `<span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span>`;
+    document.getElementById('tStatus').innerHTML   = `<span class="badge status-${esc(t.status)}">${esc(t.status).replace('_', ' ')}</span>`;
 
     if (t.rating) {
         const stars = '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating);
@@ -150,11 +162,14 @@ function renderTicket(data) {
                             <option value="2">2 ★ - Scarso</option>
                             <option value="1">1 ★ - Pessimo</option>
                         </select>
-                        <button onclick="closeWithRating()" class="btn btn-primary" style="background-color:#10b981;">Conferma Risoluzione (Chiudi)</button>
+                        <button id="btnConfirmClose" class="btn btn-primary" style="background-color:#10b981;">Conferma Risoluzione (Chiudi)</button>
                     </div>
                     <hr style="width:100%;border:0;border-top:1px solid #e2e8f0;margin:1rem 0;">
-                    <div><button onclick="updateStatus('aperto')" class="btn btn-secondary" style="border-color:#ef4444;color:#ef4444;">Non Risolto (Riapri)</button></div>
+                    <div><button id="btnReopenFromResolved" class="btn btn-secondary" style="border-color:#ef4444;color:#ef4444;">Non Risolto (Riapri)</button></div>
                 </div>`;
+            // Use addEventListener instead of inline onclick
+            document.getElementById('btnConfirmClose').addEventListener('click', closeWithRating);
+            document.getElementById('btnReopenFromResolved').addEventListener('click', () => updateStatus('aperto'));
         } else if (t.status === 'chiuso') {
             actionsEl.innerHTML = `<p class="text-muted">Il ticket è stato chiuso definitivamente.</p>`;
         } else {
@@ -162,6 +177,7 @@ function renderTicket(data) {
         }
     }
 
+    // Comments — escape all user-supplied fields
     const commentsList = document.getElementById('commentsList');
     if (data.comments.length === 0) {
         commentsList.innerHTML = '<p class="text-muted">Nessun commento.</p>';
@@ -176,15 +192,20 @@ function renderTicket(data) {
             }
             div.innerHTML = `
                 <div class="comment-header">
-                    <strong>${c.username} (${c.role})</strong>
+                    <strong>${esc(c.username)} (${esc(c.role)})</strong>
                     ${c.is_internal ? '<span class="badge" style="background:#ef4444;color:white;">Nota Interna</span>' : ''}
-                    <span class="text-muted">${new Date(c.created_at).toLocaleString()}</span>
-                </div>
-                <div style="white-space:pre-wrap;">${c.content}</div>`;
+                    <span class="text-muted">${esc(new Date(c.created_at).toLocaleString())}</span>
+                </div>`;
+            // Content in its own element using textContent to allow newlines safely
+            const contentDiv = document.createElement('div');
+            contentDiv.style.whiteSpace = 'pre-wrap';
+            contentDiv.textContent = c.content;
+            div.appendChild(contentDiv);
             commentsList.appendChild(div);
         });
     }
 
+    // Status history — escape user-supplied fields
     const historyList = document.getElementById('historyTimeline');
     historyList.innerHTML = '';
     data.history.forEach(h => {
@@ -192,24 +213,26 @@ function renderTicket(data) {
         div.className = 'timeline-item';
         div.innerHTML = `
             <div style="font-size:.875rem;">
-                <strong>${h.username}</strong> ha cambiato lo stato in
-                <span class="badge status-${h.new_status}">${h.new_status.replace('_', ' ')}</span>
+                <strong>${esc(h.username)}</strong> ha cambiato lo stato in
+                <span class="badge status-${esc(h.new_status)}">${esc(h.new_status).replace('_', ' ')}</span>
             </div>
-            <div class="text-muted" style="font-size:.75rem;margin-top:.25rem;">${new Date(h.changed_at).toLocaleString()}</div>`;
+            <div class="text-muted" style="font-size:.75rem;margin-top:.25rem;">${esc(new Date(h.changed_at).toLocaleString())}</div>`;
         historyList.appendChild(div);
     });
 
+    // Attachments — escape original_name to prevent XSS in alt/link text
     const attachmentsContainer = document.getElementById('attachmentsContainer');
     if (data.attachments?.length > 0) {
         attachmentsContainer.classList.remove('hidden');
         document.getElementById('attachmentsList').innerHTML = data.attachments.map(att => {
-            const url = `/uploads/${att.filename}`;
-            if (att.original_name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            const url      = `/uploads/${esc(att.filename)}`;
+            const safeName = esc(att.original_name);
+            if (/\.(jpg|jpeg|png|gif)$/i.test(att.original_name)) {
                 return `<a href="${url}" target="_blank" style="display:block;border:1px solid #cbd5e1;border-radius:var(--r);padding:.25rem;">
-                    <img src="${url}" alt="${att.original_name}" style="height:60px;width:auto;border-radius:var(--r-sm);">
+                    <img src="${url}" alt="${safeName}" style="height:60px;width:auto;border-radius:var(--r-sm);">
                 </a>`;
             }
-            return `<a href="${url}" target="_blank" class="btn btn-secondary" style="font-size:.875rem;">📎 ${att.original_name}</a>`;
+            return `<a href="${url}" target="_blank" class="btn btn-secondary" style="font-size:.875rem;">📎 ${safeName}</a>`;
         }).join('');
     } else {
         attachmentsContainer.classList.add('hidden');
@@ -235,7 +258,7 @@ async function updateStatus(newStatus) {
     }
 }
 
-window.closeWithRating = async function() {
+async function closeWithRating() {
     const rating = document.getElementById('ticketRating').value;
     try {
         const res = await fetch(`/api/tickets/${currentTicketId}/status`, {
@@ -253,14 +276,19 @@ window.closeWithRating = async function() {
     } catch (err) {
         console.error(err);
     }
-};
+}
 
 async function loadOperatorsForReassign() {
     try {
         const operators = await fetch('/api/admin/operators').then(r => r.json());
-        const select = document.getElementById('reassignSelect');
-        select.innerHTML = '<option value="">Seleziona Operatore...</option>' +
-            operators.map(op => `<option value="${op.id}">${op.username}</option>`).join('');
+        const select    = document.getElementById('reassignSelect');
+        select.innerHTML = '<option value="">Seleziona Operatore...</option>';
+        operators.forEach(op => {
+            const opt = document.createElement('option');
+            opt.value       = op.id;
+            opt.textContent = op.username; // textContent is safe
+            select.appendChild(opt);
+        });
     } catch (err) {
         console.error(err);
     }

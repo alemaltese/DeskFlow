@@ -1,30 +1,54 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const db = require('../db');
+const express  = require('express');
+const bcrypt   = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
+const db       = require('../db');
 const { sendEmailNotification, detailTable } = require('../utils/email');
 
 const router = express.Router();
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Max 10 login attempts per 15 minutes per IP
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Troppi tentativi di accesso. Riprova tra 15 minuti.' }
+});
+
+// Max 5 registrations per hour per IP
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Troppi tentativi di registrazione. Riprova più tardi.' }
+});
+
 // Register User
-router.post('/register', (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
     const { first_name, last_name, email, password, confirm_password } = req.body;
 
     if (!first_name || !last_name || !email || !password || !confirm_password) {
         return res.status(400).json({ error: 'Tutti i campi sono obbligatori.' });
     }
-    
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Indirizzo email non valido.' });
+    }
+    if (password.length < 8) {
+        return res.status(400).json({ error: 'La password deve contenere almeno 8 caratteri.' });
+    }
     if (password !== confirm_password) {
         return res.status(400).json({ error: 'Le password non coincidono.' });
     }
 
-    const role = 'utente'; // Hardcode role to 'utente' for public registration
-
     try {
         const hashedPassword = bcrypt.hashSync(password, 10);
-        const insert = db.prepare('INSERT INTO users (first_name, last_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)');
-        insert.run(first_name, last_name, email, hashedPassword, role);
+        db.prepare('INSERT INTO users (first_name, last_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+          .run(first_name, last_name, email, hashedPassword, 'utente');
 
-        sendEmailNotification(
+        await sendEmailNotification(
             email,
             'Benvenuto su DeskFlow!',
             `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Benvenuto/a su DeskFlow!</h2>
@@ -43,7 +67,7 @@ router.post('/register', (req, res) => {
 });
 
 // Login User
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -57,8 +81,8 @@ router.post('/login', (req, res) => {
             return res.status(401).json({ error: 'Credenziali non valide.' });
         }
 
-        req.session.userId = user.id;
-        req.session.role = user.role;
+        req.session.userId   = user.id;
+        req.session.role     = user.role;
         req.session.username = `${user.first_name} ${user.last_name}`;
 
         return res.json({ success: true, redirect: '/dashboard.html' });
@@ -70,9 +94,7 @@ router.post('/login', (req, res) => {
 // Logout User
 router.post('/logout', (req, res) => {
     req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({ error: 'Impossibile effettuare il logout.' });
-        }
+        if (err) return res.status(500).json({ error: 'Impossibile effettuare il logout.' });
         res.clearCookie('connect.sid');
         return res.json({ success: true, redirect: '/login.html' });
     });
@@ -80,22 +102,19 @@ router.post('/logout', (req, res) => {
 
 // Get Current User
 router.get('/me', (req, res) => {
-    if (!req.session.userId) {
-        return res.status(401).json({ error: 'Non connesso' });
-    }
-    
-    // Fetch fresh data from DB to support profile updates dynamically
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connesso' });
+
     try {
         const user = db.prepare('SELECT first_name, last_name, email, role FROM users WHERE id = ?').get(req.session.userId);
         if (!user) return res.status(401).json({ error: 'Utente non trovato' });
-        
+
         return res.json({
-            id: req.session.userId,
-            username: `${user.first_name} ${user.last_name}`,
+            id:         req.session.userId,
+            username:   `${user.first_name} ${user.last_name}`,
             first_name: user.first_name,
-            last_name: user.last_name,
-            email: user.email,
-            role: user.role
+            last_name:  user.last_name,
+            email:      user.email,
+            role:       user.role
         });
     } catch (err) {
         return res.status(500).json({ error: 'Errore interno' });
@@ -105,10 +124,16 @@ router.get('/me', (req, res) => {
 // Update Profile
 router.put('/profile', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connesso' });
-    
+
     const { first_name, last_name, email, password } = req.body;
     if (!first_name || !last_name || !email) {
         return res.status(400).json({ error: 'Nome, Cognome e Email sono obbligatori' });
+    }
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Indirizzo email non valido.' });
+    }
+    if (password && password.length < 8) {
+        return res.status(400).json({ error: 'La password deve contenere almeno 8 caratteri.' });
     }
 
     try {
@@ -120,14 +145,14 @@ router.put('/profile', (req, res) => {
             db.prepare('UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?')
               .run(first_name, last_name, email, req.session.userId);
         }
-        
+
         req.session.username = `${first_name} ${last_name}`;
         res.json({ success: true });
     } catch (err) {
         if (err.message.includes('UNIQUE constraint failed')) {
             return res.status(400).json({ error: 'Email già in uso.' });
         }
-        res.status(500).json({ error: 'Errore durante l\'aggiornamento.' });
+        res.status(500).json({ error: "Errore durante l'aggiornamento." });
     }
 });
 
