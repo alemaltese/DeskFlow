@@ -1,3 +1,12 @@
+// Only allow same-origin relative redirects to prevent open redirect attacks
+function safeRedirect(url) {
+    if (typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')) {
+        window.location.href = url;
+    } else {
+        window.location.href = '/dashboard.html';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm    = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
@@ -17,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
                 const data = await res.json();
-                if (res.ok && data.success) window.location.href = data.redirect;
+                if (res.ok && data.success) safeRedirect(data.redirect);
                 else errorMsg.textContent = data.error || 'Accesso fallito.';
             } catch {
                 errorMsg.textContent = 'Errore di rete. Riprova.';
@@ -84,9 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.logout = async function() {
     try {
-        const res = await fetch('/api/auth/logout', { method: 'POST' });
+        const res  = await fetch('/api/auth/logout', { method: 'POST' });
         const data = await res.json();
-        if (res.ok && data.success) window.location.href = data.redirect;
+        if (res.ok && data.success) safeRedirect(data.redirect);
     } catch (err) {
         console.error('Logout fallito', err);
     }

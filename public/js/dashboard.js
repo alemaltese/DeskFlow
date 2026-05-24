@@ -1,5 +1,15 @@
 let currentUser = null;
 
+// Escape HTML entities to prevent XSS when inserting user data into innerHTML
+function esc(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const res = await fetch('/api/auth/me');
@@ -60,7 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (const file of fileInput.files) formData.append('attachments', file);
 
         try {
-            const res = await fetch('/api/tickets', { method: 'POST', body: formData });
+            const res  = await fetch('/api/tickets', { method: 'POST', body: formData });
             const data = await res.json();
             if (res.ok) {
                 modal.classList.add('hidden');
@@ -84,12 +94,12 @@ async function fetchTickets() {
     const category    = document.getElementById('filterCategory').value;
     const operator_id = document.getElementById('filterOperator').value;
 
-    let url = `/api/tickets?sort=${sort}`;
-    if (status)      url += `&status=${status}`;
-    if (priority)    url += `&priority=${priority}`;
-    if (category)    url += `&category=${category}`;
+    let url = `/api/tickets?sort=${encodeURIComponent(sort)}`;
+    if (status)      url += `&status=${encodeURIComponent(status)}`;
+    if (priority)    url += `&priority=${encodeURIComponent(priority)}`;
+    if (category)    url += `&category=${encodeURIComponent(category)}`;
     if (operator_id === 'null') url += `&operator_id=null`;
-    else if (operator_id)       url += `&operator_id=${operator_id}`;
+    else if (operator_id)       url += `&operator_id=${encodeURIComponent(operator_id)}`;
 
     try {
         const tickets = await fetch(url).then(r => r.json());
@@ -125,18 +135,18 @@ function renderTickets(tickets) {
             ? new Date(t.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
             : '—';
         const creatorCol = (currentUser.role === 'operatore' || currentUser.role === 'admin')
-            ? `<td>${t.creator_name}</td>` : '';
+            ? `<td>${esc(t.creator_name)}</td>` : '';
 
         tr.innerHTML = `
-            <td class="mono">#${t.id}</td>
-            <td style="font-weight:500;">${t.title}</td>
-            <td>${t.category}</td>
-            <td><span class="badge priority-${t.priority}">${t.priority}</span></td>
-            <td><span class="badge status-${t.status}">${t.status.replace('_', ' ')}</span></td>
+            <td class="mono">#${esc(t.id)}</td>
+            <td style="font-weight:500;">${esc(t.title)}</td>
+            <td>${esc(t.category)}</td>
+            <td><span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span></td>
+            <td><span class="badge status-${esc(t.status)}">${esc(t.status).replace('_', ' ')}</span></td>
             ${creatorCol}
-            <td>${t.operator_name || 'Non assegnato'}</td>
-            <td style="font-size:13px;color:var(--text-muted);white-space:nowrap;">${dateStr}</td>
-            <td><a href="/ticket.html?id=${t.id}" class="btn btn-secondary" style="padding:.25rem .75rem;font-size:.875rem;">Visualizza</a></td>
+            <td>${esc(t.operator_name || 'Non assegnato')}</td>
+            <td style="font-size:13px;color:var(--text-muted);white-space:nowrap;">${esc(dateStr)}</td>
+            <td><a href="/ticket.html?id=${encodeURIComponent(t.id)}" class="btn btn-secondary" style="padding:.25rem .75rem;font-size:.875rem;">Visualizza</a></td>
         `;
         tbody.appendChild(tr);
     });
@@ -144,7 +154,7 @@ function renderTickets(tickets) {
 
 async function fetchStats() {
     try {
-        const data = await fetch('/api/analytics/summary').then(r => r.json());
+        const data   = await fetch('/api/analytics/summary').then(r => r.json());
         const prefix = { admin: 'stat', operatore: 'opStat', utente: 'uStat' }[currentUser.role];
         if (!prefix) return;
         [['Open','open'],['Progress','in_progress'],['Resolved','resolved'],['Closed','closed']].forEach(([s, k]) => {
@@ -161,8 +171,13 @@ async function loadOperatorsFilter() {
         const res = await fetch('/api/admin/operators');
         if (!res.ok) return;
         operatorsList = await res.json();
-        const select = document.getElementById('filterOperator');
-        operatorsList.forEach(op => { select.innerHTML += `<option value="${op.id}">${op.username}</option>`; });
+        const select  = document.getElementById('filterOperator');
+        operatorsList.forEach(op => {
+            const opt = document.createElement('option');
+            opt.value       = op.id;
+            opt.textContent = op.username; // textContent is safe
+            select.appendChild(opt);
+        });
         loadUnassignedTickets();
     } catch (err) {
         console.error(err);
@@ -172,23 +187,34 @@ async function loadOperatorsFilter() {
 async function loadUnassignedTickets() {
     try {
         const tickets = await fetch('/api/tickets?operator_id=null').then(r => r.json());
-        const block = document.getElementById('unassignedTicketsBlock');
+        const block   = document.getElementById('unassignedTicketsBlock');
         if (tickets.length === 0) { block.classList.add('hidden'); return; }
         block.classList.remove('hidden');
 
         const tbody = document.querySelector('#unassignedTable tbody');
         tbody.innerHTML = '';
         tickets.forEach(t => {
-            const opOptions = [`<option value="">Assegna...</option>`, ...operatorsList.map(op => `<option value="${op.id}">${op.username}</option>`)].join('');
+            const opOptions = [
+                '<option value="">Assegna...</option>',
+                ...operatorsList.map(op => {
+                    const opt = document.createElement('option');
+                    opt.value       = op.id;
+                    opt.textContent = op.username;
+                    return opt.outerHTML;
+                })
+            ].join('');
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="mono">#${t.id}</td>
-                <td style="font-weight:500;">${t.title}</td>
-                <td><span class="badge priority-${t.priority}">${t.priority}</span></td>
-                <td>${t.creator_name}</td>
-                <td><select id="quickAssign_${t.id}" class="form-control" style="padding:.25rem .5rem;">${opOptions}</select></td>
-                <td><button onclick="quickAssign(${t.id})" class="btn btn-primary" style="padding:.25rem .75rem;font-size:.875rem;">Ok</button></td>
+                <td class="mono">#${esc(t.id)}</td>
+                <td style="font-weight:500;">${esc(t.title)}</td>
+                <td><span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span></td>
+                <td>${esc(t.creator_name)}</td>
+                <td><select id="quickAssign_${esc(t.id)}" class="form-control" style="padding:.25rem .5rem;">${opOptions}</select></td>
+                <td><button class="btn btn-primary assign-btn" style="padding:.25rem .75rem;font-size:.875rem;">Ok</button></td>
             `;
+            // Use addEventListener instead of inline onclick to support Content Security Policy
+            tr.querySelector('.assign-btn').addEventListener('click', () => quickAssign(t.id));
             tbody.appendChild(tr);
         });
     } catch (err) {
@@ -198,7 +224,7 @@ async function loadUnassignedTickets() {
 
 window.quickAssign = async function(ticketId) {
     const select = document.getElementById(`quickAssign_${ticketId}`);
-    if (!select.value) return;
+    if (!select?.value) return;
     try {
         const res = await fetch(`/api/admin/tickets/${ticketId}/reassign`, {
             method: 'PUT',

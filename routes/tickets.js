@@ -1,39 +1,51 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const db = require('../db');
+const multer  = require('multer');
+const path    = require('path');
+const fs      = require('fs');
+const db      = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { sendEmailNotification, detailTable } = require('../utils/email');
 
 const router = express.Router();
 
-// Configure Multer for attachments (Level 3)
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '../public/uploads'));
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-    fileFilter: (req, file, cb) => {
-        // Allow images and pdfs
-        const allowedTypes = /jpeg|jpg|png|gif|pdf/;
-        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = allowedTypes.test(file.mimetype);
-        if (extname && mimetype) {
-            return cb(null, true);
-        }
-        cb(new Error('Sono ammessi solo immagini e PDF'));
+    destination: (req, file, cb) => cb(null, path.join(__dirname, '../public/uploads')),
+    filename:    (req, file, cb) => {
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, unique + path.extname(file.originalname));
     }
 });
 
+const allowedMimeTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf']);
+const allowedExtensions = /\.(jpg|jpeg|png|gif|pdf)$/i;
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const extOk  = allowedExtensions.test(path.extname(file.originalname));
+        const mimeOk = allowedMimeTypes.has(file.mimetype);
+        if (extOk && mimeOk) return cb(null, true);
+        cb(new Error('Sono ammessi solo immagini (jpg/png/gif) e PDF'));
+    }
+});
+
+// Prepared statements hoisted outside handlers to amortize compilation cost
+const stmtInsertAttachment = db.prepare('INSERT INTO attachments (ticket_id, filename, original_name) VALUES (?, ?, ?)');
+const insertAttachmentsTx  = db.transaction((ticketId, files) => {
+    files.forEach(f => stmtInsertAttachment.run(ticketId, f.filename, f.originalname));
+});
+
+// Wraps multer so file-filter errors return JSON instead of the Express HTML error page
+function runUpload(req, res, next) {
+    upload.array('attachments', 3)(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message });
+        next();
+    });
+}
+
 // Create Ticket
-router.post('/', requireAuth, upload.array('attachments', 3), (req, res) => {
+router.post('/', requireAuth, runUpload, async (req, res) => {
     if (req.session.role !== 'utente') {
         return res.status(403).json({ error: 'Accesso negato. Solo gli utenti possono creare ticket.' });
     }
@@ -45,44 +57,47 @@ router.post('/', requireAuth, upload.array('attachments', 3), (req, res) => {
         return res.status(400).json({ error: 'Tutti i campi sono obbligatori.' });
     }
 
+    const uploadedFiles = req.files ?? [];
+
     try {
-        // Assegnamento bilanciato (chiesto dal Livello 2)
-        const assignQuery = db.prepare(`
-            SELECT u.id, COUNT(t.id) as open_tickets 
-            FROM users u
+        const operator = db.prepare(`
+            SELECT u.id FROM users u
             LEFT JOIN tickets t ON u.id = t.operator_id AND t.status IN ('aperto', 'in_corso')
             WHERE u.role = 'operatore'
             GROUP BY u.id
-            ORDER BY open_tickets ASC, RANDOM()
+            ORDER BY COUNT(t.id) ASC, RANDOM()
             LIMIT 1
-        `);
-        const operator = assignQuery.get();
-        const operatorId = operator ? operator.id : null;
+        `).get();
+        const operatorId = operator?.id ?? null;
 
-        const insert = db.prepare(`
-            INSERT INTO tickets (title, description, category, status, priority, user_id, operator_id) 
+        const result = db.prepare(`
+            INSERT INTO tickets (title, description, category, status, priority, user_id, operator_id)
             VALUES (?, ?, ?, 'aperto', ?, ?, ?)
-        `);
-        
-        const result = insert.run(title, description, category, priority, userId, operatorId);
+        `).run(title, description, category, priority, userId, operatorId);
         const ticketId = result.lastInsertRowid;
 
-        // Log status history
         db.prepare('INSERT INTO status_history (ticket_id, new_status, changed_by) VALUES (?, ?, ?)')
           .run(ticketId, 'aperto', userId);
 
-        // Handle attachments
-        if (req.files && req.files.length > 0) {
-            const insertAttachment = db.prepare('INSERT INTO attachments (ticket_id, filename, original_name) VALUES (?, ?, ?)');
-            req.files.forEach(file => {
-                insertAttachment.run(ticketId, file.filename, file.originalname);
-            });
+        // Atomic: if any attachment insert fails, the whole transaction rolls back
+        if (uploadedFiles.length > 0) {
+            try {
+                insertAttachmentsTx(ticketId, uploadedFiles);
+            } catch (txErr) {
+                // Rollback already handled by better-sqlite3; clean up files from disk
+                uploadedFiles.forEach(f => {
+                    try { fs.unlinkSync(f.path); } catch {}
+                });
+                throw txErr;
+            }
         }
 
-        // Email all'utente: conferma apertura ticket
+        res.json({ success: true, ticketId });
+
+        // Send emails after responding so the client isn't blocked
         const creator = db.prepare('SELECT email, first_name FROM users WHERE id = ?').get(userId);
         if (creator) {
-            sendEmailNotification(
+            await sendEmailNotification(
                 creator.email,
                 `Ticket #${ticketId} aperto — ${title}`,
                 `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Ticket aperto con successo</h2>
@@ -91,12 +106,10 @@ router.post('/', requireAuth, upload.array('attachments', 3), (req, res) => {
                  <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Ti invieremo una notifica non appena un operatore inizierà a lavorare sulla tua richiesta.</p>`
             );
         }
-
-        // Email all'operatore assegnato: nuovo ticket assegnato
         if (operatorId) {
             const op = db.prepare('SELECT email, first_name FROM users WHERE id = ?').get(operatorId);
             if (op) {
-                sendEmailNotification(
+                await sendEmailNotification(
                     op.email,
                     `Nuovo ticket assegnato: #${ticketId} — ${title}`,
                     `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Nuovo ticket assegnato</h2>
@@ -106,24 +119,27 @@ router.post('/', requireAuth, upload.array('attachments', 3), (req, res) => {
                 );
             }
         }
-
-        res.json({ success: true, ticketId });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Errore del database durante la creazione del ticket.' });
+        console.error(`[${new Date().toISOString()}] create ticket error:`, err.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Errore durante la creazione del ticket.' });
+        }
     }
 });
 
-// Get Tickets (Dashboard)
+// Get Tickets (Dashboard) — with pagination
 router.get('/', requireAuth, (req, res) => {
     const userId = req.session.userId;
-    const role = req.session.role;
-    
-    // Filters
-    const { category, status, priority, operator_id, sort } = req.query;
+    const role   = req.session.role;
+
+    const { category, status, priority, sort } = req.query;
+    const operator_id = req.query.operator_id;
+    const limit  = Math.min(parseInt(req.query.limit)  || 50, 200);
+    const offset = Math.max(parseInt(req.query.offset) || 0,  0);
 
     let queryStr = `
-        SELECT t.*, u.first_name || ' ' || u.last_name as creator_name, op.first_name || ' ' || op.last_name as operator_name 
+        SELECT t.*, u.first_name || ' ' || u.last_name as creator_name,
+               op.first_name || ' ' || op.last_name as operator_name
         FROM tickets t
         JOIN users u ON t.user_id = u.id
         LEFT JOIN users op ON t.operator_id = op.id
@@ -135,42 +151,32 @@ router.get('/', requireAuth, (req, res) => {
         queryStr += ' AND t.user_id = ?';
         params.push(userId);
     } else if (role === 'operatore') {
-        // L'operatore vede solo i ticket a lui assegnati
         queryStr += ' AND t.operator_id = ?';
         params.push(userId);
     }
-    // admin non ha restrizioni e vede tutto
 
-    if (category) {
-        queryStr += ' AND t.category = ?';
-        params.push(category);
-    }
-    if (status) {
-        queryStr += ' AND t.status = ?';
-        params.push(status);
-    }
-    if (priority) {
-        queryStr += ' AND t.priority = ?';
-        params.push(priority);
-    }
-    // non ci serve più questo filtro specifico per operatore se non per admin
+    if (category) { queryStr += ' AND t.category = ?'; params.push(category); }
+    if (status)   { queryStr += ' AND t.status = ?';   params.push(status); }
+    if (priority) { queryStr += ' AND t.priority = ?'; params.push(priority); }
+
     if (operator_id && role === 'admin') {
-        queryStr += ' AND t.operator_id = ?';
-        params.push(operator_id);
+        if (operator_id === 'null') {
+            queryStr += ' AND t.operator_id IS NULL';
+        } else {
+            queryStr += ' AND t.operator_id = ?';
+            params.push(operator_id);
+        }
     }
 
-    // Default sorting (newest first)
-    if (sort === 'oldest') {
-        queryStr += ' ORDER BY t.created_at ASC';
-    } else {
-        queryStr += ' ORDER BY t.created_at DESC';
-    }
+    queryStr += sort === 'oldest' ? ' ORDER BY t.created_at ASC' : ' ORDER BY t.created_at DESC';
+    queryStr += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
 
     try {
         const tickets = db.prepare(queryStr).all(...params);
         res.json(tickets);
     } catch (err) {
-        console.error(err);
+        console.error(`[${new Date().toISOString()}] get tickets error:`, err.message);
         res.status(500).json({ error: 'Impossibile caricare i ticket.' });
     }
 });
@@ -178,196 +184,181 @@ router.get('/', requireAuth, (req, res) => {
 // Get Single Ticket Details
 router.get('/:id', requireAuth, (req, res) => {
     const ticketId = req.params.id;
-    const userId = req.session.userId;
-    const role = req.session.role;
+    const userId   = req.session.userId;
+    const role     = req.session.role;
 
     try {
         const ticket = db.prepare(`
-            SELECT t.*, u.first_name || ' ' || u.last_name as creator_name, op.first_name || ' ' || op.last_name as operator_name 
+            SELECT t.*, u.first_name || ' ' || u.last_name as creator_name,
+                   op.first_name || ' ' || op.last_name as operator_name
             FROM tickets t
             JOIN users u ON t.user_id = u.id
             LEFT JOIN users op ON t.operator_id = op.id
             WHERE t.id = ?
         `).get(ticketId);
 
-        if (!ticket) {
-            return res.status(404).json({ error: 'Ticket non trovato.' });
-        }
+        if (!ticket) return res.status(404).json({ error: 'Ticket non trovato.' });
 
-        // Authorization check
-        if (role === 'utente' && ticket.user_id !== userId) {
-            return res.status(403).json({ error: 'Accesso negato.' });
-        }
-        if (role === 'operatore' && ticket.operator_id !== userId) {
-            return res.status(403).json({ error: 'Accesso negato. Il ticket non ti è assegnato.' });
-        }
+        if (role === 'utente'    && ticket.user_id     !== userId) return res.status(403).json({ error: 'Accesso negato.' });
+        if (role === 'operatore' && ticket.operator_id !== userId) return res.status(403).json({ error: 'Accesso negato. Il ticket non ti è assegnato.' });
 
-        // Gli utenti non possono vedere i commenti interni
         let commentsQuery = `
             SELECT c.*, u.first_name || ' ' || u.last_name as username, u.role
             FROM comments c
             JOIN users u ON c.user_id = u.id
             WHERE c.ticket_id = ?
         `;
-        if (role === 'utente') {
-            commentsQuery += ' AND c.is_internal = 0';
-        }
+        if (role === 'utente') commentsQuery += ' AND c.is_internal = 0';
         commentsQuery += ' ORDER BY c.created_at ASC';
 
-        const comments = db.prepare(commentsQuery).all(ticketId);
-
-        const history = db.prepare(`
+        const comments    = db.prepare(commentsQuery).all(ticketId);
+        const history     = db.prepare(`
             SELECT h.*, u.first_name || ' ' || u.last_name as username
             FROM status_history h
             JOIN users u ON h.changed_by = u.id
             WHERE h.ticket_id = ?
             ORDER BY h.changed_at ASC
         `).all(ticketId);
-
         const attachments = db.prepare('SELECT * FROM attachments WHERE ticket_id = ?').all(ticketId);
 
         res.json({ ticket, comments, history, attachments });
     } catch (err) {
-        console.error(err);
+        console.error(`[${new Date().toISOString()}] get ticket error:`, err.message);
         res.status(500).json({ error: 'Impossibile recuperare i dettagli del ticket.' });
     }
 });
 
 // Add Comment
-router.post('/:id/comments', requireAuth, (req, res) => {
+router.post('/:id/comments', requireAuth, async (req, res) => {
     const ticketId = req.params.id;
-    const userId = req.session.userId;
-    const role = req.session.role;
+    const userId   = req.session.userId;
+    const role     = req.session.role;
     const { content, is_internal } = req.body;
 
-    if (!content) return res.status(400).json({ error: 'Il contenuto è obbligatorio.' });
+    if (!content?.trim()) return res.status(400).json({ error: 'Il contenuto è obbligatorio.' });
 
     try {
         const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(ticketId);
         if (!ticket) return res.status(404).json({ error: 'Ticket non trovato.' });
 
-        if (role === 'utente' && ticket.user_id !== userId) {
-            return res.status(403).json({ error: 'Accesso negato.' });
-        }
-        if (role === 'operatore' && ticket.operator_id !== userId) {
-            return res.status(403).json({ error: 'Accesso negato. Il ticket non ti è assegnato.' });
-        }
+        if (role === 'utente'    && ticket.user_id     !== userId) return res.status(403).json({ error: 'Accesso negato.' });
+        if (role === 'operatore' && ticket.operator_id !== userId) return res.status(403).json({ error: 'Accesso negato. Il ticket non ti è assegnato.' });
 
         const internalFlag = (is_internal && role !== 'utente') ? 1 : 0;
 
         db.prepare('INSERT INTO comments (ticket_id, user_id, content, is_internal) VALUES (?, ?, ?, ?)')
           .run(ticketId, userId, content, internalFlag);
-
         db.prepare('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(ticketId);
 
-        // Send Email Notifications
+        res.json({ success: true });
+
         if ((role === 'operatore' || role === 'admin') && internalFlag === 0) {
-            // Operatore/admin risponde all'utente (non nota interna)
-            const ticketCreator = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.user_id);
-            if (ticketCreator) {
-                const subject = `Nuova risposta al Ticket #${ticket.id}`;
-                const html = `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Hai una nuova risposta</h2>
-                              <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Il team di supporto ha risposto al tuo ticket <strong style="color:#374151;">"${ticket.title}"</strong>.</p>
-                              <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Accedi alla dashboard per visualizzare la risposta e continuare la conversazione.</p>`;
-                sendEmailNotification(ticketCreator.email, subject, html);
+            const creator = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.user_id);
+            if (creator) {
+                await sendEmailNotification(
+                    creator.email,
+                    `Nuova risposta al Ticket #${ticket.id}`,
+                    `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Hai una nuova risposta</h2>
+                     <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Il team di supporto ha risposto al tuo ticket <strong style="color:#374151;">"${ticket.title}"</strong>.</p>
+                     <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Accedi alla dashboard per visualizzare la risposta e continuare la conversazione.</p>`
+                );
             }
-        } else if (role === 'utente') {
-            // Utente commenta -> notifica operatore assegnato
-            if (ticket.operator_id) {
-                const op = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.operator_id);
-                if (op) {
-                    const subject = `Nuovo commento sul Ticket #${ticket.id}`;
-                    const html = `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Nuovo commento dall'utente</h2>
-                                  <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">L'utente ha aggiunto un messaggio al ticket <strong style="color:#374151;">"${ticket.title}"</strong>.</p>
-                                  <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Accedi alla dashboard per visualizzare il messaggio e rispondere.</p>`;
-                    sendEmailNotification(op.email, subject, html);
-                }
+        } else if (role === 'utente' && ticket.operator_id) {
+            const op = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.operator_id);
+            if (op) {
+                await sendEmailNotification(
+                    op.email,
+                    `Nuovo commento sul Ticket #${ticket.id}`,
+                    `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Nuovo commento dall'utente</h2>
+                     <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">L'utente ha aggiunto un messaggio al ticket <strong style="color:#374151;">"${ticket.title}"</strong>.</p>
+                     <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Accedi alla dashboard per visualizzare il messaggio e rispondere.</p>`
+                );
             }
         }
-
-        res.json({ success: true });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Impossibile aggiungere il commento.' });
+        console.error(`[${new Date().toISOString()}] add comment error:`, err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Impossibile aggiungere il commento.' });
     }
 });
 
 // Change Ticket Status
-router.put('/:id/status', requireAuth, (req, res) => {
+router.put('/:id/status', requireAuth, async (req, res) => {
     const ticketId = req.params.id;
-    const userId = req.session.userId;
-    const role = req.session.role;
+    const userId   = req.session.userId;
+    const role     = req.session.role;
     const { status, rating } = req.body;
 
     const validStatuses = ['aperto', 'in_corso', 'risolto', 'chiuso'];
-    if (!validStatuses.includes(status)) {
-        return res.status(400).json({ error: 'Stato non valido.' });
-    }
+    if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Stato non valido.' });
 
     try {
         const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(ticketId);
         if (!ticket) return res.status(404).json({ error: 'Ticket non trovato.' });
 
-        if (role === 'utente' && ticket.user_id !== userId) {
-            return res.status(403).json({ error: 'Accesso negato.' });
-        }
-        if (role === 'operatore' && ticket.operator_id !== userId) {
-            return res.status(403).json({ error: 'Accesso negato. Il ticket non ti è assegnato.' });
-        }
+        if (role === 'utente'    && ticket.user_id     !== userId) return res.status(403).json({ error: 'Accesso negato.' });
+        if (role === 'operatore' && ticket.operator_id !== userId) return res.status(403).json({ error: 'Accesso negato. Il ticket non ti è assegnato.' });
 
-        // Users can only change to 'closed' or 'open' (reopen) from 'resolved'
         if (role === 'utente' && !['chiuso', 'aperto'].includes(status)) {
-             return res.status(403).json({ error: 'Gli utenti possono solo chiudere o riaprire un ticket risolto.' });
+            return res.status(403).json({ error: 'Gli utenti possono solo chiudere o riaprire un ticket risolto.' });
         }
-        
-        // Operatori possono passare in_corso e risolto
         if (role === 'operatore' && !['in_corso', 'risolto'].includes(status)) {
             return res.status(403).json({ error: 'Gli operatori non possono forzare stati di chiusura/riapertura.' });
         }
 
-        db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-          .run(status, ticketId);
-          
-        if (status === 'chiuso' && rating && role === 'utente') {
-            db.prepare('UPDATE tickets SET rating = ? WHERE id = ?').run(rating, ticketId);
+        db.prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, ticketId);
+
+        if (status === 'chiuso' && rating != null && role === 'utente') {
+            const r = Number(rating);
+            if (![1, 2, 3, 4, 5].includes(r)) return res.status(400).json({ error: 'Valutazione non valida (1–5).' });
+            db.prepare('UPDATE tickets SET rating = ? WHERE id = ?').run(r, ticketId);
         }
-          
+
         db.prepare('INSERT INTO status_history (ticket_id, old_status, new_status, changed_by) VALUES (?, ?, ?, ?)')
           .run(ticketId, ticket.status, status, userId);
 
-        // Email Notification for 'resolved' status
+        res.json({ success: true });
+
         if (status === 'risolto' && (role === 'operatore' || role === 'admin')) {
-            const ticketCreator = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.user_id);
-            if (ticketCreator) {
-                const subject = `Ticket #${ticket.id} risolto`;
-                const html = `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Il tuo ticket è stato risolto</h2>
-                              <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Il ticket <strong style="color:#374151;">"${ticket.title}"</strong> è stato segnato come <strong>Risolto</strong>.</p>
-                              <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Se il problema è stato risolto, puoi chiudere il ticket dalla dashboard e lasciare una valutazione. In caso contrario, puoi riaprirlo.</p>`;
-                sendEmailNotification(ticketCreator.email, subject, html);
+            const creator = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.user_id);
+            if (creator) {
+                await sendEmailNotification(
+                    creator.email,
+                    `Ticket #${ticket.id} risolto`,
+                    `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Il tuo ticket è stato risolto</h2>
+                     <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Il ticket <strong style="color:#374151;">"${ticket.title}"</strong> è stato segnato come <strong>Risolto</strong>.</p>
+                     <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Se il problema è stato risolto, puoi chiudere il ticket dalla dashboard e lasciare una valutazione. In caso contrario, puoi riaprirlo.</p>`
+                );
             }
         }
-        
-        // Email Notification if ticket reopened
+
         if (status === 'aperto' && role === 'utente' && ticket.status !== 'aperto') {
-            const reopenSubject = `Ticket #${ticket.id} riaperto dall'utente`;
-            const reopenHtml = `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Ticket riaperto</h2>
-                              <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Il ticket <strong style="color:#374151;">"${ticket.title}"</strong> è stato riaperto dall'utente.</p>
-                              <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Verifica il ticket nella dashboard e riassegnalo se necessario.</p>`;
+            const subject = `Ticket #${ticket.id} riaperto dall'utente`;
+            const html    = `<h2 style="margin:0 0 6px;font-size:20px;font-weight:700;color:#111827;">Ticket riaperto</h2>
+                             <p style="margin:0 0 18px;font-size:14px;color:#6b7280;">Il ticket <strong style="color:#374151;">"${ticket.title}"</strong> è stato riaperto dall'utente.</p>
+                             <p style="margin:0;font-size:13.5px;color:#6b7280;line-height:1.6;">Verifica il ticket nella dashboard e riassegnalo se necessario.</p>`;
 
             const admins = db.prepare('SELECT email FROM users WHERE role = ?').all('admin');
-            admins.forEach(a => sendEmailNotification(a.email, reopenSubject, reopenHtml));
+            for (const a of admins) await sendEmailNotification(a.email, subject, html);
 
             if (ticket.operator_id) {
                 const op = db.prepare('SELECT email FROM users WHERE id = ?').get(ticket.operator_id);
-                if (op) sendEmailNotification(op.email, reopenSubject, reopenHtml);
+                if (op) await sendEmailNotification(op.email, subject, html);
             }
         }
-
-        res.json({ success: true });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Impossibile aggiornare lo stato.' });
+        console.error(`[${new Date().toISOString()}] update status error:`, err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'Impossibile aggiornare lo stato.' });
     }
+});
+
+// Router-level error handler — catches Multer errors and any other route errors,
+// returning JSON instead of Express 5's default HTML error page
+router.use((err, req, res, next) => {
+    const status = err.status || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
+    const message = err.code === 'LIMIT_FILE_SIZE'
+        ? 'File troppo grande. Dimensione massima: 5 MB'
+        : (err.message || 'Errore del server');
+    if (!res.headersSent) res.status(status).json({ error: message });
 });
 
 module.exports = router;

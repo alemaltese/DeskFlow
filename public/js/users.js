@@ -1,3 +1,13 @@
+// Escape HTML entities to prevent XSS when inserting user data into innerHTML
+function esc(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const res = await fetch('/api/auth/me');
@@ -53,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('editUserForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const id = document.getElementById('edit_id').value;
+        const id       = document.getElementById('edit_id').value;
         const password = document.getElementById('edit_password').value;
         try {
             const res = await fetch(`/api/admin/users/${id}`, {
@@ -89,19 +99,21 @@ const roleLabel      = { admin: 'Admin', operatore: 'Operatore', utente: 'Utente
 async function loadUsers() {
     try {
         const res = await fetch('/api/admin/users');
-        allUsers = await res.json();
+        allUsers  = await res.json();
         const tbody = document.querySelector('#usersTable tbody');
         tbody.innerHTML = '';
         allUsers.forEach(u => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="mono">#${u.id}</td>
-                <td><strong>${u.first_name} ${u.last_name}</strong></td>
-                <td>${u.email}</td>
-                <td><span class="badge ${roleBadgeClass[u.role] ?? 'neutral'}">${roleLabel[u.role] ?? u.role}</span></td>
-                <td class="text-muted" style="font-size:0.875rem;">${new Date(u.created_at).toLocaleDateString('it-IT')}</td>
-                <td><button class="btn btn-secondary" style="padding:.25rem .5rem;" onclick="openEdit(${u.id})"><i class="fa-solid fa-pen"></i> Modifica</button></td>
+                <td class="mono">#${esc(u.id)}</td>
+                <td><strong>${esc(u.first_name)} ${esc(u.last_name)}</strong></td>
+                <td>${esc(u.email)}</td>
+                <td><span class="badge ${roleBadgeClass[u.role] ?? 'neutral'}">${esc(roleLabel[u.role] ?? u.role)}</span></td>
+                <td class="text-muted" style="font-size:0.875rem;">${esc(new Date(u.created_at).toLocaleDateString('it-IT'))}</td>
+                <td><button class="btn btn-secondary edit-btn" style="padding:.25rem .5rem;"><i class="fa-solid fa-pen"></i> Modifica</button></td>
             `;
+            // Use addEventListener instead of inline onclick to support Content Security Policy
+            tr.querySelector('.edit-btn').addEventListener('click', () => openEdit(u.id));
             tbody.appendChild(tr);
         });
     } catch (err) {
@@ -121,11 +133,11 @@ window.openEdit = function(id) {
     document.getElementById('edit_password').value   = '';
 
     const isAdmin = u.role === 'admin';
-    ['edit_first_name','edit_last_name','edit_email','edit_role','edit_password'].forEach(id => {
-        document.getElementById(id).disabled = isAdmin;
+    ['edit_first_name','edit_last_name','edit_email','edit_role','edit_password'].forEach(fieldId => {
+        document.getElementById(fieldId).disabled = isAdmin;
     });
     const btn = document.querySelector('#editUserForm button[type="submit"]');
-    btn.disabled = isAdmin;
+    btn.disabled    = isAdmin;
     btn.textContent = isAdmin ? 'Modifica non consentita' : 'Salva';
 
     document.getElementById('editUserModal').classList.remove('hidden');
