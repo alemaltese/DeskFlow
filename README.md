@@ -4,201 +4,586 @@ DeskFlow è un'applicazione web per la gestione del supporto tecnico. Permette a
 
 ---
 
-## Come avviare il progetto
+## Indice
+
+1. [Avvio del progetto](#avvio-del-progetto)
+2. [Variabili d'ambiente](#variabili-dambiente)
+3. [Struttura del progetto](#struttura-del-progetto)
+4. [Stack tecnologico](#stack-tecnologico)
+5. [Database e schema](#database-e-schema)
+6. [Sistema dei ruoli e permessi](#sistema-dei-ruoli-e-permessi)
+7. [API — Endpoint completi](#api--endpoint-completi)
+8. [Regole di validazione](#regole-di-validazione)
+9. [Upload file — Limiti e regole](#upload-file--limiti-e-regole)
+10. [Sessione e cookie](#sessione-e-cookie)
+11. [Notifiche email](#notifiche-email)
+12. [Sicurezza](#sicurezza)
+13. [Limitazioni note](#limitazioni-note)
+
+---
+
+## Avvio del progetto
 
 **Requisiti:** Node.js 18+
 
 ```bash
-# 1. Installa le dipendenze
+# 1. Installa le dipendenze (copia anche Chart.js in public/js/vendor automaticamente)
 npm install
 
 # 2. Crea il file di configurazione
 cp .env.example .env
-# Poi apri .env e compila i valori
+# Apri .env e compila i valori (vedi sezione variabili d'ambiente)
 
 # 3. Avvia il server
 node server.js
 ```
 
-Il server si avvia su `http://localhost:3000`.
+Il server si avvia su `http://localhost:3000` (o la porta definita in `PORT`).
 
-### Credenziali di test (dopo il seeding automatico)
+> **Il database viene ricreato ad ogni avvio** con dati di esempio. Questa è una scelta intenzionale per lo sviluppo/esame. Ogni riavvio azzera tutti i dati e reinserisce il seed.
 
-| Ruolo     | Email               | Password |
-|-----------|---------------------|----------|
-| Admin     | admin@test.com      | password |
-| Operatore | operatore1@test.com | password |
-| Utente    | utente1@test.com    | password |
+### Credenziali di test (seed automatico)
 
-> Il database viene ricreato ad ogni avvio con dati di esempio. Questa è una scelta intenzionale per lo sviluppo.
-
----
-
-## Variabili d'ambiente richieste
-
-Crea un file `.env` nella root del progetto con questi valori:
-
-```
-SESSION_SECRET=una_stringa_casuale_lunga_almeno_32_caratteri
-EMAIL_USER=tua_email@gmail.com
-EMAIL_PASS=app_password_gmail
-PORT=3000
-```
-
-> **Importante:** il server non si avvia se `SESSION_SECRET` non è impostato.
+| Ruolo      | Email                | Password  |
+|------------|----------------------|-----------|
+| Admin      | admin@test.com       | password  |
+| Operatore  | operatore1@test.com  | password  |
+| Operatore  | operatore2@test.com  | password  |
+| Operatore  | operatore3@test.com  | password  |
+| Operatore  | operatore4@test.com  | password  |
+| Operatore  | operatore5@test.com  | password  |
+| Utente     | utente1@test.com     | password  |
+| Utente     | utente2@test.com     | password  |
+| Utente     | utente3@test.com     | password  |
+| Utente     | utente4@test.com     | password  |
+| Utente     | utente5@test.com     | password  |
 
 ---
 
-## Funzionalità principali
+## Variabili d'ambiente
 
-- **Apertura ticket** con categoria, priorità e allegati (fino a 3 file, max 5 MB ciascuno)
-- **Assegnazione automatica** all'operatore con meno ticket aperti
-- **Gestione ruoli** — Admin, Operatore, Utente — con permessi distinti
-- **Note interne** visibili solo agli operatori e agli admin
-- **Notifiche email** automatiche ad ogni evento rilevante
-- **Dashboard** con statistiche, filtri e grafici
-- **Valutazione** del supporto alla chiusura del ticket (1–5 stelle)
+Crea un file `.env` nella root del progetto. Il server **non si avvia** se `SESSION_SECRET` non è impostato.
+
+```env
+SESSION_SECRET=una_stringa_casuale_lunga_almeno_32_caratteri   # OBBLIGATORIO
+EMAIL_USER=tua_email@gmail.com                                  # Account Gmail per l'invio email
+EMAIL_PASS=app_password_gmail                                   # App Password Gmail (non la password normale)
+PORT=3000                                                       # Porta del server (default 3000)
+NODE_ENV=development                                            # development | production
+```
+
+> In produzione (`NODE_ENV=production`) i cookie di sessione vengono inviati solo su HTTPS.
+
+### Come ottenere l'App Password Gmail
+
+1. Vai su [myaccount.google.com](https://myaccount.google.com) → Sicurezza → Verifica in due passaggi (deve essere attiva)
+2. Cerca "Password per le app" → crea una nuova password per "Posta"
+3. Usa quella stringa come `EMAIL_PASS`
 
 ---
 
 ## Struttura del progetto
 
 ```
-├── server.js           # Punto di ingresso del server Express
-├── db.js               # Configurazione SQLite e seeding dati
+TIW_ESAME/
+├── server.js                  # Entry point — Express app, middleware, route mounting
+├── db.js                      # Inizializzazione SQLite, schema tabelle, seeding dati
+├── package.json               # Dipendenze e script npm
+├── .env                       # Variabili d'ambiente (non versionare in produzione)
 ├── routes/
-│   ├── auth.js         # Login, registrazione, profilo
-│   ├── tickets.js      # Creazione, lista, dettaglio, commenti
-│   ├── admin.js        # Gestione utenti e riassegnazione ticket
-│   └── analytics.js    # Statistiche e KPI
+│   ├── auth.js                # Registrazione, login, logout, profilo
+│   ├── tickets.js             # CRUD ticket, commenti, status, allegati
+│   ├── admin.js               # Gestione utenti e riassegnazione ticket
+│   └── analytics.js           # Statistiche, KPI, grafici
 ├── middleware/
-│   └── auth.js         # Protezione delle rotte (requireAuth, requireAdmin)
+│   └── auth.js                # requireAuth, requireOperator, requireAdmin
 ├── utils/
-│   └── email.js        # Invio notifiche email con Nodemailer
+│   └── email.js               # Template email HTML, transporter Nodemailer
 ├── public/
-│   ├── css/style.css   # Stile dell'applicazione
-│   ├── js/             # JavaScript del frontend
-│   └── uploads/        # File allegati ai ticket
-└── views/              # Pagine HTML
+│   ├── css/
+│   │   └── style.css          # Foglio di stile principale
+│   ├── js/
+│   │   ├── auth.js            # Form login/registrazione, logout, toggle password
+│   │   ├── dashboard.js       # Lista ticket, filtri, modale nuovo ticket, KPI
+│   │   ├── ticket.js          # Dettaglio ticket, commenti, timeline, status
+│   │   ├── profile.js         # Modifica profilo e password
+│   │   ├── users.js           # Gestione utenti admin (CRUD con modali)
+│   │   ├── analytics.js       # Fetch statistiche e rendering Chart.js
+│   │   ├── toast.js           # Sistema notifiche toast (success/error)
+│   │   └── vendor/
+│   │       └── chart.umd.min.js  # Chart.js (copiato da node_modules via postinstall)
+│   └── uploads/               # File allegati ai ticket (gestiti da Multer)
+└── views/
+    ├── index.html             # Landing page pubblica
+    ├── login.html             # Pagina di accesso
+    ├── register.html          # Registrazione (solo utenti)
+    ├── dashboard.html         # Dashboard principale con lista ticket
+    ├── ticket.html            # Dettaglio ticket (?id=X come query param)
+    ├── profile.html           # Profilo utente
+    ├── users.html             # Gestione utenti (solo admin)
+    └── analytics.html         # Statistiche e grafici (solo admin)
 ```
-
----
-
-## Miglioramenti di sicurezza applicati
-
-Di seguito le vulnerabilità corrette, spiegate in modo semplice.
-
-### Protezione da XSS (Cross-Site Scripting)
-
-**Problema:** titoli di ticket, commenti e nomi utente venivano inseriti direttamente nel codice HTML della pagina. Un utente poteva scrivere codice JavaScript nel titolo di un ticket e farlo eseguire nel browser di chiunque aprisse quella pagina.
-
-**Soluzione:** tutti i dati che arrivano dall'API vengono ora "puliti" prima di essere mostrati. I caratteri speciali come `<`, `>` e `"` vengono trasformati in versioni innocue. Questo vale per commenti, nomi utente, titoli e tutti i campi inseriti dagli utenti.
-
----
-
-### Password non più inviata via email
-
-**Problema:** quando un admin creava un nuovo account, la password veniva inclusa nell'email di benvenuto. Chiunque potesse leggere quell'email aveva accesso all'account.
-
-**Soluzione:** l'email di benvenuto mostra ora solo l'indirizzo email e il ruolo dell'utente, senza la password.
-
----
-
-### Cookie di sessione più sicuri
-
-**Problema:** il cookie che mantiene l'utente loggato mancava di alcune protezioni importanti.
-
-**Soluzione:**
-- `sameSite: Strict` — il cookie non viene mai inviato da altri siti, proteggendo da attacchi CSRF
-- `secure: true` in produzione — il cookie viaggia solo su connessioni HTTPS
-- `httpOnly: true` — già presente, impedisce a JavaScript di leggere il cookie
-
----
-
-### Limite ai tentativi di login
-
-**Problema:** non c'era nessun limite al numero di tentativi di accesso. Un attaccante poteva provare migliaia di password senza essere bloccato.
-
-**Soluzione:** dopo 10 tentativi falliti in 15 minuti dallo stesso indirizzo IP, l'accesso viene temporaneamente bloccato. La registrazione è limitata a 5 tentativi per ora.
-
----
-
-### Intestazioni di sicurezza HTTP
-
-**Problema:** il server non inviava alcune intestazioni standard che il browser usa per proteggersi da certi tipi di attacco.
-
-**Soluzione:** aggiunto Helmet.js, che aggiunge automaticamente le intestazioni di sicurezza più importanti, come `X-Frame-Options` (previene il clickjacking) e `X-Content-Type-Options` (previene il MIME sniffing).
-
----
-
-### Validazione dei dati in ingresso
-
-**Problema:** il server accettava dati mal formati — email non valide, password di un carattere, valutazioni fuori scala.
-
-**Soluzione:**
-- L'email deve avere un formato valido (`nome@dominio.estensione`)
-- La password deve essere di almeno 8 caratteri
-- La valutazione di un ticket deve essere un numero intero tra 1 e 5
-
----
-
-### Reindirizzamento sicuro dopo il login
-
-**Problema:** dopo il login, il browser veniva reindirizzato all'URL ricevuto dalla risposta del server senza verificarlo. Un URL esterno malevolo avrebbe potuto mandare l'utente su un altro sito.
-
-**Soluzione:** il reindirizzamento avviene solo se l'URL inizia con `/` (percorso relativo). Qualsiasi URL esterno viene ignorato e sostituito con la dashboard.
-
----
-
-### Upload di file atomico
-
-**Problema:** quando si allegavano più file a un ticket, se uno degli inserimenti nel database falliva, i file rimanevano sul disco senza riferimento nel database.
-
-**Soluzione:** tutti gli inserimenti degli allegati avvengono in una singola transazione. Se qualcosa va storto, tutto viene annullato e i file già scritti sul disco vengono eliminati.
-
----
-
-### Indici sul database
-
-**Problema:** le query di filtro scansionavano tutta la tabella dei ticket ad ogni richiesta. Con migliaia di ticket, questo sarebbe diventato molto lento.
-
-**Soluzione:** aggiunti 6 indici sulle colonne più usate nei filtri (`status`, `operator_id`, `user_id`, `created_at`). Le query sono ora significativamente più veloci.
-
----
-
-### Paginazione sulla lista ticket
-
-**Problema:** la lista dei ticket caricava tutti i record in una volta. Con molti ticket, questo avrebbe saturato la memoria del server e rallentato il browser.
-
-**Soluzione:** la lista accetta i parametri `limit` (massimo 200, default 50) e `offset` per caricare i ticket a blocchi.
-
----
-
-### Avvio sicuro del server
-
-**Problema:** se `SESSION_SECRET` non era configurato, il server usava un valore di default debole, rendendo le sessioni facilmente falsificabili.
-
-**Soluzione:** se `SESSION_SECRET` non è presente nel file `.env`, il server si rifiuta di avviarsi e mostra un errore chiaro.
-
----
-
-### Integrità del database
-
-**Problema:** SQLite non attiva i vincoli sulle chiavi esterne per default. Eliminando un utente, i suoi ticket e commenti sarebbero rimasti nel database senza un riferimento valido.
-
-**Soluzione:** attivata l'opzione `PRAGMA foreign_keys = ON` e aggiunte le regole `ON DELETE CASCADE` (elimina i dati collegati) e `ON DELETE SET NULL` (rimuove solo il riferimento senza eliminare il record).
 
 ---
 
 ## Stack tecnologico
 
-| Componente | Tecnologia |
-|------------|------------|
-| Backend    | Node.js, Express 5 |
-| Database   | SQLite (better-sqlite3) |
-| Sessioni   | express-session |
-| Password   | bcryptjs |
-| Email      | Nodemailer (Gmail SMTP) |
-| Upload     | Multer |
-| Sicurezza  | Helmet, express-rate-limit |
-| Frontend   | HTML, CSS, Vanilla JS |
+| Componente       | Tecnologia                        | Versione |
+|-----------------|-----------------------------------|----------|
+| Runtime          | Node.js                           | 18+      |
+| Framework        | Express                           | 5.2.1    |
+| Database         | SQLite tramite better-sqlite3     | —        |
+| Sessioni         | express-session                   | —        |
+| Hashing password | bcryptjs (salt round 10)          | —        |
+| Email            | Nodemailer (Gmail SMTP, porta 587)| —        |
+| Upload file      | Multer (disk storage)             | —        |
+| Sicurezza header | Helmet.js                         | —        |
+| Grafici          | Chart.js                          | —        |
+| Frontend         | HTML, CSS, Vanilla JS             | —        |
+
+---
+
+## Database e schema
+
+Il database SQLite viene inizializzato e popolato ad ogni avvio tramite `db.js`.
+
+### Tabelle
+
+#### `users`
+| Colonna        | Tipo     | Vincoli                                      |
+|----------------|----------|----------------------------------------------|
+| id             | INTEGER  | PRIMARY KEY AUTOINCREMENT                    |
+| first_name     | TEXT     | NOT NULL                                     |
+| last_name      | TEXT     | NOT NULL                                     |
+| email          | TEXT     | NOT NULL, UNIQUE                             |
+| password_hash  | TEXT     | NOT NULL                                     |
+| role           | TEXT     | NOT NULL — valori: `utente`, `operatore`, `admin` |
+| created_at     | DATETIME | DEFAULT CURRENT_TIMESTAMP                    |
+
+#### `tickets`
+| Colonna     | Tipo     | Vincoli                                                         |
+|-------------|----------|-----------------------------------------------------------------|
+| id          | INTEGER  | PRIMARY KEY AUTOINCREMENT                                       |
+| title       | TEXT     | NOT NULL                                                        |
+| description | TEXT     | NOT NULL                                                        |
+| category    | TEXT     | NOT NULL                                                        |
+| status      | TEXT     | NOT NULL — valori: `aperto`, `in_corso`, `risolto`, `chiuso`    |
+| priority    | TEXT     | NOT NULL — valori: `bassa`, `media`, `alta`, `urgente`          |
+| user_id     | INTEGER  | REFERENCES users(id) ON DELETE CASCADE                          |
+| operator_id | INTEGER  | REFERENCES users(id) ON DELETE SET NULL (nullable)              |
+| rating      | INTEGER  | nullable — valori: 1–5 (inserito solo alla chiusura)            |
+| created_at  | DATETIME | DEFAULT CURRENT_TIMESTAMP                                       |
+| updated_at  | DATETIME | DEFAULT CURRENT_TIMESTAMP                                       |
+
+#### `comments`
+| Colonna     | Tipo     | Vincoli                                           |
+|-------------|----------|---------------------------------------------------|
+| id          | INTEGER  | PRIMARY KEY AUTOINCREMENT                         |
+| ticket_id   | INTEGER  | REFERENCES tickets(id) ON DELETE CASCADE          |
+| user_id     | INTEGER  | REFERENCES users(id) ON DELETE CASCADE            |
+| content     | TEXT     | NOT NULL                                          |
+| is_internal | INTEGER  | DEFAULT 0 (0 = pubblico, 1 = nota interna)        |
+| created_at  | DATETIME | DEFAULT CURRENT_TIMESTAMP                         |
+
+#### `status_history`
+| Colonna    | Tipo     | Vincoli                                           |
+|------------|----------|---------------------------------------------------|
+| id         | INTEGER  | PRIMARY KEY AUTOINCREMENT                         |
+| ticket_id  | INTEGER  | REFERENCES tickets(id) ON DELETE CASCADE          |
+| old_status | TEXT     | —                                                 |
+| new_status | TEXT     | NOT NULL                                          |
+| changed_by | INTEGER  | REFERENCES users(id) ON DELETE SET NULL           |
+| changed_at | DATETIME | DEFAULT CURRENT_TIMESTAMP                         |
+
+#### `attachments`
+| Colonna       | Tipo     | Vincoli                                          |
+|---------------|----------|--------------------------------------------------|
+| id            | INTEGER  | PRIMARY KEY AUTOINCREMENT                        |
+| ticket_id     | INTEGER  | REFERENCES tickets(id) ON DELETE CASCADE         |
+| filename      | TEXT     | NOT NULL — nome file su disco (timestamp-random) |
+| original_name | TEXT     | NOT NULL — nome file originale                   |
+| created_at    | DATETIME | DEFAULT CURRENT_TIMESTAMP                        |
+
+### Indici
+
+```sql
+CREATE INDEX idx_tickets_status       ON tickets(status);
+CREATE INDEX idx_tickets_operator_id  ON tickets(operator_id);
+CREATE INDEX idx_tickets_user_id      ON tickets(user_id);
+CREATE INDEX idx_tickets_created_at   ON tickets(created_at DESC);
+CREATE INDEX idx_comments_ticket_id   ON comments(ticket_id);
+CREATE INDEX idx_history_ticket_id    ON status_history(ticket_id);
+```
+
+### Pragma
+
+```sql
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+```
+
+---
+
+## Sistema dei ruoli e permessi
+
+### Utente
+
+- Può **registrarsi** autonomamente dalla pagina `/register.html`
+- Può **aprire ticket** (con categoria, priorità, descrizione, fino a 3 allegati)
+- Vede **solo i propri ticket** nella dashboard
+- Può **aggiungere commenti pubblici** ai propri ticket
+- Non può aggiungere note interne
+- Può **chiudere** (`chiuso`) un ticket risolto, con valutazione opzionale 1–5
+- Può **riaprire** (`aperto`) un ticket già chiuso
+- Non può cambiare status in `in_corso` o `risolto`
+- Può **modificare** il proprio profilo (nome, email, password)
+- **Non ha accesso** ad analytics, gestione utenti, o ticket altrui
+- Riceve email per: registrazione, apertura ticket, risposta operatore, risoluzione, riapertura
+
+### Operatore
+
+- **Non può registrarsi** — l'account viene creato dall'admin
+- **Non può aprire ticket**
+- Vede **solo i ticket assegnati a lui**
+- Può aggiungere **commenti pubblici e note interne** (visibili solo a staff)
+- Può cambiare status solo in `in_corso` o `risolto`
+- Non può chiudere o riaprire ticket (è l'utente a farlo)
+- Può **modificare** il proprio profilo
+- Non ha accesso alla gestione utenti
+- Vede analytics limitata ai propri ticket (KPI e priorità)
+- Riceve email per: nuovo ticket assegnato, commento dell'utente
+
+### Admin
+
+- **Non può aprire ticket**
+- Vede **tutti i ticket** del sistema
+- Vede la **coda dei ticket non assegnati**
+- Può **riassegnare** qualsiasi ticket a qualsiasi operatore
+- Può aggiungere commenti pubblici e note interne
+- Può cambiare status a qualsiasi valore (`aperto`, `in_corso`, `risolto`, `chiuso`)
+- Ha accesso completo alle **analytics**: KPI totali, grafici per priorità, metriche per operatore, workload
+- Ha accesso alla **gestione utenti**: crea, modifica utenti con ruolo `utente` o `operatore`
+- Non può creare altri admin tramite interfaccia (il ruolo `admin` è assegnabile solo via DB)
+- Riceve email per: ticket riaperto dall'utente
+
+---
+
+## API — Endpoint completi
+
+### Autenticazione — `/api/auth`
+
+| Metodo | Path        | Auth richiesta | Descrizione                                    |
+|--------|-------------|----------------|------------------------------------------------|
+| POST   | `/register` | No             | Crea un account utente                         |
+| POST   | `/login`    | No             | Login, crea la sessione                        |
+| POST   | `/logout`   | Sì             | Distrugge la sessione e cancella il cookie     |
+| GET    | `/me`       | Sì             | Restituisce i dati dell'utente corrente        |
+| PUT    | `/profile`  | Sì             | Aggiorna nome, email e/o password              |
+
+**POST /register** — Body JSON:
+```json
+{
+  "first_name": "Marco",
+  "last_name": "Bianchi",
+  "email": "marco@example.com",
+  "password": "password123",
+  "confirm_password": "password123"
+}
+```
+Risposte: `200 { success: true }` | `400 { error: "..." }` | `500 { error: "..." }`
+
+**POST /login** — Body JSON:
+```json
+{ "email": "...", "password": "..." }
+```
+Risposte: `200 { success: true, redirect: "/dashboard.html" }` | `401 { error: "Credenziali non valide." }`
+
+**PUT /profile** — Body JSON (password opzionale):
+```json
+{
+  "first_name": "Marco",
+  "last_name": "Bianchi",
+  "email": "marco@example.com",
+  "password": "nuova_password"
+}
+```
+
+---
+
+### Ticket — `/api/tickets`
+
+| Metodo | Path               | Auth richiesta         | Descrizione                                          |
+|--------|--------------------|------------------------|------------------------------------------------------|
+| POST   | `/`                | Sì (solo utente)       | Crea ticket + allegati, assegna operatore            |
+| GET    | `/`                | Sì                     | Lista ticket (filtri + paginazione, scoped per ruolo)|
+| GET    | `/:id`             | Sì                     | Dettaglio ticket con commenti, history, allegati     |
+| POST   | `/:id/comments`    | Sì                     | Aggiunge commento o nota interna                     |
+| PUT    | `/:id/status`      | Sì                     | Cambia status, registra history, invia email         |
+
+**POST /** — multipart/form-data:
+```
+title        (text, obbligatorio)
+description  (text, obbligatorio)
+category     (text, obbligatorio)
+priority     (text: bassa|media|alta|urgente, obbligatorio)
+attachments  (file, opzionale, max 3)
+```
+
+**GET /** — Query params supportati:
+```
+status     = aperto|in_corso|risolto|chiuso
+category   = testo libero
+priority   = bassa|media|alta|urgente
+operator   = id operatore (solo admin)
+limit      = numero (max 200, default 50)
+offset     = numero (default 0)
+```
+
+**POST /:id/comments** — Body JSON:
+```json
+{
+  "content": "Testo del commento",
+  "is_internal": false
+}
+```
+> `is_internal: true` è accettato solo da operatori e admin.
+
+**PUT /:id/status** — Body JSON:
+```json
+{
+  "status": "risolto",
+  "rating": 5
+}
+```
+> `rating` (1–5) è opzionale, valido solo quando `status = "chiuso"`, inseribile solo dall'utente proprietario.
+
+---
+
+### Admin — `/api/admin`
+
+| Metodo | Path                  | Auth richiesta | Descrizione                             |
+|--------|-----------------------|----------------|-----------------------------------------|
+| GET    | `/operators`          | Admin          | Lista operatori (per dropdown)          |
+| GET    | `/users`              | Admin          | Lista tutti gli utenti                  |
+| POST   | `/users`              | Admin          | Crea nuovo utente (utente o operatore)  |
+| PUT    | `/users/:id`          | Admin          | Modifica utente esistente               |
+| PUT    | `/tickets/:id/reassign` | Admin        | Riassegna ticket a un operatore         |
+
+**POST /users** — Body JSON:
+```json
+{
+  "first_name": "Luca",
+  "last_name": "Rossi",
+  "email": "luca@example.com",
+  "password": "password123",
+  "role": "operatore"
+}
+```
+
+**PUT /tickets/:id/reassign** — Body JSON:
+```json
+{ "operator_id": 3 }
+```
+
+---
+
+### Analytics — `/api/analytics`
+
+| Metodo | Path           | Auth richiesta | Descrizione                                              |
+|--------|----------------|----------------|----------------------------------------------------------|
+| GET    | `/summary`     | Sì             | Conteggi per status + tempi medi (scoped per ruolo)      |
+| GET    | `/by-priority` | Sì             | Conteggio ticket per priorità (operatore: solo i suoi)   |
+| GET    | `/by-operator` | Admin          | Ticket risolti per operatore (ultimi 30 giorni)          |
+| GET    | `/workload`    | Admin          | Ticket attivi (aperto + in_corso) per operatore          |
+
+**GET /summary** — Risposta esempio:
+```json
+{
+  "open": 5,
+  "in_progress": 3,
+  "resolved": 12,
+  "closed": 8,
+  "avg_first_response_hours": 2.4,
+  "avg_resolution_hours": 18.7
+}
+```
+
+---
+
+### Health Check
+
+| Metodo | Path          | Auth | Descrizione                    |
+|--------|---------------|------|--------------------------------|
+| GET    | `/api/health` | No   | Stato del server e del database|
+
+---
+
+## Regole di validazione
+
+### Registrazione e profilo
+
+| Campo            | Regola                                                         |
+|------------------|----------------------------------------------------------------|
+| `first_name`     | Obbligatorio, non vuoto                                        |
+| `last_name`      | Obbligatorio, non vuoto                                        |
+| `email`          | Obbligatorio, formato `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, UNIQUE  |
+| `password`       | Obbligatorio, minimo 8 caratteri                               |
+| `confirm_password` | Deve coincidere con `password`                               |
+
+### Creazione ticket
+
+| Campo        | Regola                                                      |
+|--------------|-------------------------------------------------------------|
+| `title`      | Obbligatorio, non vuoto                                     |
+| `description`| Obbligatorio, non vuoto                                     |
+| `category`   | Obbligatorio, non vuoto                                     |
+| `priority`   | Obbligatorio — uno tra: `bassa`, `media`, `alta`, `urgente` |
+
+### Status ticket
+
+| Ruolo      | Status consentiti                    |
+|------------|--------------------------------------|
+| Utente     | `aperto` (riapertura), `chiuso`      |
+| Operatore  | `in_corso`, `risolto`                |
+| Admin      | Tutti (`aperto`, `in_corso`, `risolto`, `chiuso`) |
+
+### Valutazione
+
+| Campo    | Regola                                                                         |
+|----------|--------------------------------------------------------------------------------|
+| `rating` | Intero tra 1 e 5, opzionale, accettato solo se `status = "chiuso"`, solo dall'utente proprietario |
+
+### Commenti
+
+| Campo         | Regola                                                              |
+|---------------|---------------------------------------------------------------------|
+| `content`     | Obbligatorio, non può essere solo spazi bianchi                     |
+| `is_internal` | Solo operatori e admin possono impostarlo a `true`                  |
+
+### Creazione utente (admin)
+
+| Campo        | Regola                                                    |
+|--------------|-----------------------------------------------------------|
+| `role`       | Solo `utente` o `operatore` — non è possibile creare admin|
+| `email`      | Formato valido, UNIQUE                                    |
+| `password`   | Minimo 8 caratteri                                        |
+| Tutti i campi | Obbligatori                                              |
+
+---
+
+## Upload file — Limiti e regole
+
+| Parametro             | Valore                                          |
+|-----------------------|-------------------------------------------------|
+| Numero massimo file   | **3 per ticket**                                |
+| Dimensione massima    | **5 MB per file** (5.242.880 bytes)             |
+| Tipi MIME accettati   | `image/jpeg`, `image/png`, `image/gif`, `application/pdf` |
+| Estensioni accettate  | `.jpg`, `.jpeg`, `.png`, `.gif`, `.pdf` (case-insensitive) |
+| Cartella di destinazione | `public/uploads/`                            |
+| Nome file su disco    | `{timestamp}-{random}.{estensione}`             |
+
+La verifica avviene sia sul **MIME type** che sull'**estensione** del file. Un file che passa solo uno dei due controlli viene rifiutato.
+
+L'inserimento degli allegati nel database è **atomico**: se uno degli insert fallisce, la transazione viene annullata e i file già scritti su disco vengono eliminati.
+
+---
+
+## Sessione e cookie
+
+| Parametro       | Valore                                                                  |
+|-----------------|-------------------------------------------------------------------------|
+| Store           | Memoria del processo (si azzera al riavvio del server)                  |
+| Durata          | **24 ore** (86.400.000 ms)                                              |
+| `httpOnly`      | `true` — JavaScript non può leggere il cookie                           |
+| `sameSite`      | `Strict` — il cookie non viene mai inviato da altri siti (anti-CSRF)    |
+| `secure`        | `true` solo in produzione (`NODE_ENV=production`) — richiede HTTPS      |
+
+Dati salvati nella sessione:
+```json
+{
+  "userId": 1,
+  "role": "utente",
+  "username": "Mario Rossi"
+}
+```
+
+> **Attenzione:** il session store in-memory non è adatto a deployment multi-processo o con PM2 in cluster mode. Per la produzione, usare `connect-sqlite3` o `connect-redis`.
+
+---
+
+## Notifiche email
+
+Tutte le email vengono inviate tramite Gmail SMTP (porta 587) con Nodemailer. Il template base ha header viola/indaco con il logo DeskFlow, tabella dettagli a righe alternate e footer.
+
+| Evento                            | Destinatario                            | Oggetto                                        |
+|-----------------------------------|-----------------------------------------|------------------------------------------------|
+| Registrazione completata          | Utente registrato                       | "Benvenuto su DeskFlow!"                       |
+| Ticket aperto                     | Utente che ha aperto il ticket          | "Ticket #X aperto — [titolo]"                  |
+| Ticket aperto                     | Operatore assegnato automaticamente     | "Nuovo ticket assegnato: #X — [titolo]"        |
+| Operatore/admin risponde          | Utente proprietario del ticket          | "Nuova risposta al Ticket #X"                  |
+| Utente risponde                   | Operatore assegnato                     | "Nuovo commento sul Ticket #X"                 |
+| Ticket risolto                    | Utente proprietario del ticket          | "Ticket #X risolto"                            |
+| Ticket riaperto dall'utente       | Tutti gli admin + operatore assegnato   | "Ticket #X riaperto dall'utente"               |
+| Account creato dall'admin         | Nuovo utente                            | "Il tuo account DeskFlow è pronto"             |
+
+> Le email vengono inviate **dopo** che la risposta è già stata inviata al client, quindi eventuali errori SMTP non bloccano l'operazione. Gli errori vengono loggati in console.
+
+> **La password non viene mai inclusa nelle email**, nemmeno in quella di benvenuto per account creati dall'admin.
+
+---
+
+## Sicurezza
+
+### Hashing password
+
+bcryptjs con **salt round 10**. Le password non vengono mai salvate in chiaro né incluse in risposte API o email.
+
+### Protezione SQL injection
+
+Tutte le query usano **prepared statements** con parametri (`?`). Non viene mai concatenato input utente nelle query SQL.
+
+### Protezione XSS
+
+Tutti i dati provenienti dall'API vengono passati attraverso una funzione `esc()` prima di essere inseriti nel DOM via `innerHTML`. La funzione sostituisce `&`, `<`, `>`, `"`, `'` con le corrispondenti entità HTML. I messaggi di sistema usano `textContent`.
+
+### Protezione CSRF
+
+Cookie di sessione con `sameSite: Strict`. Il browser non invia mai il cookie su richieste cross-site.
+
+### Protezione open redirect
+
+La funzione `safeRedirect()` accetta solo URL che iniziano con `/` e non con `//`. Qualsiasi altro URL viene sostituito con `/dashboard.html`.
+
+### Header HTTP di sicurezza
+
+Helmet.js aggiunge automaticamente:
+- `X-Frame-Options: SAMEORIGIN` — previene il clickjacking
+- `X-Content-Type-Options: nosniff` — previene il MIME sniffing
+- `Referrer-Policy` — limita le informazioni nel header Referer
+- `Content-Security-Policy` — (configurazione default di Helmet)
+
+### Integrità referenziale database
+
+`PRAGMA foreign_keys = ON` attivato. Le relazioni usano `ON DELETE CASCADE` e `ON DELETE SET NULL` per evitare dati orfani.
+
+### Avvio sicuro
+
+Il server si rifiuta di avviarsi se `SESSION_SECRET` non è definito nel file `.env`, evitando che giri con una chiave di sessione debole o di default.
+
+---
+
+## Limitazioni note
+
+| Limitazione                  | Dettaglio                                                                                              |
+|------------------------------|--------------------------------------------------------------------------------------------------------|
+| **Session store in-memory**  | Le sessioni si perdono al riavvio. Non adatto a deployment distribuiti o con cluster.                  |
+| **Database ricostruito all'avvio** | `db.js` ricrea tutte le tabelle e inserisce i dati di seed ad ogni `node server.js`. In produzione bisogna rimuovere il drop/recreate e usare migrazioni. |
+| **SQLite single-file**       | Non adatto ad alta concorrenza. Per produzione si consiglia PostgreSQL o MySQL.                        |
+| **Email sincrona post-risposta** | Gli errori SMTP vengono solo loggati, mai segnalati all'utente.                                   |
+| **Storage file locale**       | Gli allegati vengono salvati in `public/uploads/` sul disco del server. Non scalabile su cloud.       |
+| **Nessun rate limiting**      | Il middleware `express-rate-limit` è installato come dipendenza ma non è attivo su nessun endpoint.   |
+| **Nessun test automatico**    | Non è presente una test suite.                                                                        |
+| **Nessuna build frontend**    | JS e CSS non sono minificati. Non c'è bundler (Webpack/Vite).                                         |
+| **CORS non configurato**      | Funziona solo se frontend e backend sono serviti dalla stessa origine.                                |
+| **Logging minimale**          | Solo `console.log` e `console.error`. Nessun sistema di log strutturato.                              |
+| **Admin non creabile via UI** | Il ruolo `admin` non può essere assegnato tramite interfaccia — solo direttamente nel DB o nel seed.  |

@@ -1,6 +1,5 @@
 const express  = require('express');
 const bcrypt   = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
 const db       = require('../db');
 const { sendEmailNotification, detailTable } = require('../utils/email');
 
@@ -8,26 +7,8 @@ const router = express.Router();
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Max 10 login attempts per 15 minutes per IP
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Troppi tentativi di accesso. Riprova tra 15 minuti.' }
-});
-
-// Max 5 registrations per hour per IP
-const registerLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Troppi tentativi di registrazione. Riprova più tardi.' }
-});
-
 // Register User
-router.post('/register', registerLimiter, async (req, res) => {
+router.post('/register', async (req, res) => {
     const { first_name, last_name, email, password, confirm_password } = req.body;
 
     if (!first_name || !last_name || !email || !password || !confirm_password) {
@@ -67,7 +48,7 @@ router.post('/register', registerLimiter, async (req, res) => {
 });
 
 // Login User
-router.post('/login', loginLimiter, (req, res) => {
+router.post('/login', (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {

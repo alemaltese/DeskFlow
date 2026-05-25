@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            errorMsg.textContent = '';
             try {
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
@@ -85,6 +86,10 @@ document.addEventListener('DOMContentLoaded', () => {
             this.classList.toggle('fa-eye', !isPass);
             this.classList.toggle('fa-eye-slash', isPass);
         });
+    });
+
+    document.querySelectorAll('.auth-tabs button[data-href]').forEach(btn => {
+        btn.addEventListener('click', () => safeRedirect(btn.dataset.href));
     });
 
     const btnLogout = document.getElementById('btnLogout');
