@@ -14,11 +14,10 @@ DeskFlow è un'applicazione web per la gestione del supporto tecnico. Permette a
 6. [Sistema dei ruoli e permessi](#sistema-dei-ruoli-e-permessi)
 7. [API — Endpoint completi](#api--endpoint-completi)
 8. [Regole di validazione](#regole-di-validazione)
-9. [Upload file — Limiti e regole](#upload-file--limiti-e-regole)
-10. [Sessione e cookie](#sessione-e-cookie)
-11. [Notifiche email](#notifiche-email)
-12. [Sicurezza](#sicurezza)
-13. [Limitazioni note](#limitazioni-note)
+9. [Sessione](#sessione)
+10. [Notifiche email](#notifiche-email)
+11. [Sicurezza](#sicurezza)
+12. [Limitazioni note](#limitazioni-note)
 
 ---
 
@@ -62,17 +61,13 @@ Il server si avvia su `http://localhost:3000` (o la porta definita in `PORT`).
 
 ## Variabili d'ambiente
 
-Crea un file `.env` nella root del progetto. Il server **non si avvia** se `SESSION_SECRET` non è impostato.
+Il file `.env` è opzionale. Il server si avvia anche senza — la sessione usa il secret hardcodato `'esame-tiw'`. Le variabili email sono necessarie solo se si vuole che le notifiche vengano effettivamente inviate.
 
 ```env
-SESSION_SECRET=una_stringa_casuale_lunga_almeno_32_caratteri   # OBBLIGATORIO
-EMAIL_USER=tua_email@gmail.com                                  # Account Gmail per l'invio email
-EMAIL_PASS=app_password_gmail                                   # App Password Gmail (non la password normale)
-PORT=3000                                                       # Porta del server (default 3000)
-NODE_ENV=development                                            # development | production
+EMAIL_USER=tua_email@gmail.com   # Account Gmail per l'invio email
+EMAIL_PASS=app_password_gmail    # App Password Gmail (non la password normale)
+PORT=3000                        # Porta del server (default 3000)
 ```
-
-> In produzione (`NODE_ENV=production`) i cookie di sessione vengono inviati solo su HTTPS.
 
 ### Come ottenere l'App Password Gmail
 
@@ -112,7 +107,7 @@ TIW_ESAME/
 │   │   ├── toast.js           # Sistema notifiche toast (success/error)
 │   │   └── vendor/
 │   │       └── chart.umd.min.js  # Chart.js (copiato da node_modules via postinstall)
-│   └── uploads/               # File allegati ai ticket (gestiti da Multer)
+│   └── uploads/               # Cartella presente ma non più usata (allegati rimossi)
 └── views/
     ├── index.html             # Landing page pubblica
     ├── login.html             # Pagina di accesso
@@ -136,8 +131,6 @@ TIW_ESAME/
 | Sessioni         | express-session                   | —        |
 | Hashing password | bcryptjs (salt round 10)          | —        |
 | Email            | Nodemailer (Gmail SMTP, porta 587)| —        |
-| Upload file      | Multer (disk storage)             | —        |
-| Sicurezza header | Helmet.js                         | —        |
 | Grafici          | Chart.js                          | —        |
 | Frontend         | HTML, CSS, Vanilla JS             | —        |
 
@@ -195,15 +188,6 @@ Il database SQLite viene inizializzato e popolato ad ogni avvio tramite `db.js`.
 | changed_by | INTEGER  | REFERENCES users(id) ON DELETE SET NULL           |
 | changed_at | DATETIME | DEFAULT CURRENT_TIMESTAMP                         |
 
-#### `attachments`
-| Colonna       | Tipo     | Vincoli                                          |
-|---------------|----------|--------------------------------------------------|
-| id            | INTEGER  | PRIMARY KEY AUTOINCREMENT                        |
-| ticket_id     | INTEGER  | REFERENCES tickets(id) ON DELETE CASCADE         |
-| filename      | TEXT     | NOT NULL — nome file su disco (timestamp-random) |
-| original_name | TEXT     | NOT NULL — nome file originale                   |
-| created_at    | DATETIME | DEFAULT CURRENT_TIMESTAMP                        |
-
 ### Indici
 
 ```sql
@@ -229,7 +213,7 @@ PRAGMA journal_mode = WAL;
 ### Utente
 
 - Può **registrarsi** autonomamente dalla pagina `/register.html`
-- Può **aprire ticket** (con categoria, priorità, descrizione, fino a 3 allegati)
+- Può **aprire ticket** (con categoria, priorità e descrizione)
 - Vede **solo i propri ticket** nella dashboard
 - Può **aggiungere commenti pubblici** ai propri ticket
 - Non può aggiungere note interne
@@ -314,19 +298,20 @@ Risposte: `200 { success: true, redirect: "/dashboard.html" }` | `401 { error: "
 
 | Metodo | Path               | Auth richiesta         | Descrizione                                          |
 |--------|--------------------|------------------------|------------------------------------------------------|
-| POST   | `/`                | Sì (solo utente)       | Crea ticket + allegati, assegna operatore            |
+| POST   | `/`                | Sì (solo utente)       | Crea ticket (solo testo), assegna operatore          |
 | GET    | `/`                | Sì                     | Lista ticket (filtri + paginazione, scoped per ruolo)|
-| GET    | `/:id`             | Sì                     | Dettaglio ticket con commenti, history, allegati     |
+| GET    | `/:id`             | Sì                     | Dettaglio ticket con commenti e history              |
 | POST   | `/:id/comments`    | Sì                     | Aggiunge commento o nota interna                     |
 | PUT    | `/:id/status`      | Sì                     | Cambia status, registra history, invia email         |
 
-**POST /** — multipart/form-data:
-```
-title        (text, obbligatorio)
-description  (text, obbligatorio)
-category     (text, obbligatorio)
-priority     (text: bassa|media|alta|urgente, obbligatorio)
-attachments  (file, opzionale, max 3)
+**POST /** — Body JSON:
+```json
+{
+  "title": "Problema con il PC",
+  "description": "Il monitor non si accende.",
+  "category": "Hardware",
+  "priority": "alta"
+}
 ```
 
 **GET /** — Query params supportati:
@@ -471,32 +456,14 @@ offset     = numero (default 0)
 
 ---
 
-## Upload file — Limiti e regole
+## Sessione
 
-| Parametro             | Valore                                          |
-|-----------------------|-------------------------------------------------|
-| Numero massimo file   | **3 per ticket**                                |
-| Dimensione massima    | **5 MB per file** (5.242.880 bytes)             |
-| Tipi MIME accettati   | `image/jpeg`, `image/png`, `image/gif`, `application/pdf` |
-| Estensioni accettate  | `.jpg`, `.jpeg`, `.png`, `.gif`, `.pdf` (case-insensitive) |
-| Cartella di destinazione | `public/uploads/`                            |
-| Nome file su disco    | `{timestamp}-{random}.{estensione}`             |
-
-La verifica avviene sia sul **MIME type** che sull'**estensione** del file. Un file che passa solo uno dei due controlli viene rifiutato.
-
-L'inserimento degli allegati nel database è **atomico**: se uno degli insert fallisce, la transazione viene annullata e i file già scritti su disco vengono eliminati.
-
----
-
-## Sessione e cookie
-
-| Parametro       | Valore                                                                  |
-|-----------------|-------------------------------------------------------------------------|
-| Store           | Memoria del processo (si azzera al riavvio del server)                  |
-| Durata          | **24 ore** (86.400.000 ms)                                              |
-| `httpOnly`      | `true` — JavaScript non può leggere il cookie                           |
-| `sameSite`      | `Strict` — il cookie non viene mai inviato da altri siti (anti-CSRF)    |
-| `secure`        | `true` solo in produzione (`NODE_ENV=production`) — richiede HTTPS      |
+| Parametro  | Valore                                                         |
+|------------|----------------------------------------------------------------|
+| Store      | Memoria del processo (si azzera al riavvio del server)         |
+| Secret     | `'esame-tiw'` hardcodato in `server.js`                        |
+| `resave`   | `false`                                                        |
+| `saveUninitialized` | `false`                                               |
 
 Dati salvati nella sessione:
 ```json
@@ -506,8 +473,6 @@ Dati salvati nella sessione:
   "username": "Mario Rossi"
 }
 ```
-
-> **Attenzione:** il session store in-memory non è adatto a deployment multi-processo o con PM2 in cluster mode. Per la produzione, usare `connect-sqlite3` o `connect-redis`.
 
 ---
 
@@ -546,29 +511,13 @@ Tutte le query usano **prepared statements** con parametri (`?`). Non viene mai 
 
 Tutti i dati provenienti dall'API vengono passati attraverso una funzione `esc()` prima di essere inseriti nel DOM via `innerHTML`. La funzione sostituisce `&`, `<`, `>`, `"`, `'` con le corrispondenti entità HTML. I messaggi di sistema usano `textContent`.
 
-### Protezione CSRF
-
-Cookie di sessione con `sameSite: Strict`. Il browser non invia mai il cookie su richieste cross-site.
-
 ### Protezione open redirect
 
 La funzione `safeRedirect()` accetta solo URL che iniziano con `/` e non con `//`. Qualsiasi altro URL viene sostituito con `/dashboard.html`.
 
-### Header HTTP di sicurezza
-
-Helmet.js aggiunge automaticamente:
-- `X-Frame-Options: SAMEORIGIN` — previene il clickjacking
-- `X-Content-Type-Options: nosniff` — previene il MIME sniffing
-- `Referrer-Policy` — limita le informazioni nel header Referer
-- `Content-Security-Policy` — (configurazione default di Helmet)
-
 ### Integrità referenziale database
 
 `PRAGMA foreign_keys = ON` attivato. Le relazioni usano `ON DELETE CASCADE` e `ON DELETE SET NULL` per evitare dati orfani.
-
-### Avvio sicuro
-
-Il server si rifiuta di avviarsi se `SESSION_SECRET` non è definito nel file `.env`, evitando che giri con una chiave di sessione debole o di default.
 
 ---
 
@@ -576,14 +525,11 @@ Il server si rifiuta di avviarsi se `SESSION_SECRET` non è definito nel file `.
 
 | Limitazione                  | Dettaglio                                                                                              |
 |------------------------------|--------------------------------------------------------------------------------------------------------|
-| **Session store in-memory**  | Le sessioni si perdono al riavvio. Non adatto a deployment distribuiti o con cluster.                  |
-| **Database ricostruito all'avvio** | `db.js` ricrea tutte le tabelle e inserisce i dati di seed ad ogni `node server.js`. In produzione bisogna rimuovere il drop/recreate e usare migrazioni. |
-| **SQLite single-file**       | Non adatto ad alta concorrenza. Per produzione si consiglia PostgreSQL o MySQL.                        |
-| **Email sincrona post-risposta** | Gli errori SMTP vengono solo loggati, mai segnalati all'utente.                                   |
-| **Storage file locale**       | Gli allegati vengono salvati in `public/uploads/` sul disco del server. Non scalabile su cloud.       |
-| **Nessun rate limiting**      | Il middleware `express-rate-limit` è installato come dipendenza ma non è attivo su nessun endpoint.   |
+| **Session store in-memory**  | Le sessioni si perdono al riavvio del server.                                                          |
+| **Database ricostruito all'avvio** | `db.js` ricrea tutte le tabelle e inserisce i dati di seed ad ogni `node server.js`. Ogni riavvio azzera tutti i dati. |
+| **SQLite single-file**       | Non adatto ad alta concorrenza.                                                                        |
+| **Email post-risposta**       | Gli errori SMTP vengono solo loggati in console, mai segnalati all'utente.                            |
+| **Nessun rate limiting**      | `express-rate-limit` è installato come dipendenza ma non attivo su nessun endpoint.                   |
 | **Nessun test automatico**    | Non è presente una test suite.                                                                        |
-| **Nessuna build frontend**    | JS e CSS non sono minificati. Non c'è bundler (Webpack/Vite).                                         |
 | **CORS non configurato**      | Funziona solo se frontend e backend sono serviti dalla stessa origine.                                |
-| **Logging minimale**          | Solo `console.log` e `console.error`. Nessun sistema di log strutturato.                              |
-| **Admin non creabile via UI** | Il ruolo `admin` non può essere assegnato tramite interfaccia — solo direttamente nel DB o nel seed.  |
+| **Admin non creabile via UI** | Il ruolo `admin` non può essere assegnato tramite interfaccia — solo nel seed o direttamente nel DB.  |

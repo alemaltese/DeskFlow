@@ -59,18 +59,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('newTicketForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const fileInput = document.getElementById('ntAttachments');
-        if (fileInput.files.length > 3) { alert('È consentito un massimo di 3 file.'); return; }
-
-        const formData = new FormData();
-        formData.append('title',       document.getElementById('ntTitle').value);
-        formData.append('category',    document.getElementById('ntCategory').value);
-        formData.append('priority',    document.getElementById('ntPriority').value);
-        formData.append('description', document.getElementById('ntDescription').value);
-        for (const file of fileInput.files) formData.append('attachments', file);
 
         try {
-            const res  = await fetch('/api/tickets', { method: 'POST', body: formData });
+            const res  = await fetch('/api/tickets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title:       document.getElementById('ntTitle').value,
+                    category:    document.getElementById('ntCategory').value,
+                    priority:    document.getElementById('ntPriority').value,
+                    description: document.getElementById('ntDescription').value
+                })
+            });
             const data = await res.json();
             if (res.ok) {
                 modal.classList.add('hidden');

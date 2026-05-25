@@ -10,7 +10,6 @@ db.pragma('foreign_keys = ON');
 
 function initDb() {
     db.exec(`
-        DROP TABLE IF EXISTS attachments;
         DROP TABLE IF EXISTS status_history;
         DROP TABLE IF EXISTS comments;
         DROP TABLE IF EXISTS tickets;
@@ -62,15 +61,6 @@ function initDb() {
             changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
             FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS attachments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticket_id INTEGER NOT NULL,
-            filename TEXT NOT NULL,
-            original_name TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
         );
 
         CREATE INDEX IF NOT EXISTS idx_tickets_status   ON tickets(status);

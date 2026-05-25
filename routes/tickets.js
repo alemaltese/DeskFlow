@@ -1,51 +1,12 @@
 const express = require('express');
-const multer  = require('multer');
-const path    = require('path');
-const fs      = require('fs');
 const db      = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { sendEmailNotification, detailTable } = require('../utils/email');
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, '../public/uploads')),
-    filename:    (req, file, cb) => {
-        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, unique + path.extname(file.originalname));
-    }
-});
-
-const allowedMimeTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf']);
-const allowedExtensions = /\.(jpg|jpeg|png|gif|pdf)$/i;
-
-const upload = multer({
-    storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const extOk  = allowedExtensions.test(path.extname(file.originalname));
-        const mimeOk = allowedMimeTypes.has(file.mimetype);
-        if (extOk && mimeOk) return cb(null, true);
-        cb(new Error('Sono ammessi solo immagini (jpg/png/gif) e PDF'));
-    }
-});
-
-// Prepared statements hoisted outside handlers to amortize compilation cost
-const stmtInsertAttachment = db.prepare('INSERT INTO attachments (ticket_id, filename, original_name) VALUES (?, ?, ?)');
-const insertAttachmentsTx  = db.transaction((ticketId, files) => {
-    files.forEach(f => stmtInsertAttachment.run(ticketId, f.filename, f.originalname));
-});
-
-// Wraps multer so file-filter errors return JSON instead of the Express HTML error page
-function runUpload(req, res, next) {
-    upload.array('attachments', 3)(req, res, (err) => {
-        if (err) return res.status(400).json({ error: err.message });
-        next();
-    });
-}
-
 // Create Ticket
-router.post('/', requireAuth, runUpload, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
     if (req.session.role !== 'utente') {
         return res.status(403).json({ error: 'Accesso negato. Solo gli utenti possono creare ticket.' });
     }
@@ -56,8 +17,6 @@ router.post('/', requireAuth, runUpload, async (req, res) => {
     if (!title || !description || !category || !priority) {
         return res.status(400).json({ error: 'Tutti i campi sono obbligatori.' });
     }
-
-    const uploadedFiles = req.files ?? [];
 
     try {
         const operator = db.prepare(`
@@ -79,22 +38,8 @@ router.post('/', requireAuth, runUpload, async (req, res) => {
         db.prepare('INSERT INTO status_history (ticket_id, new_status, changed_by) VALUES (?, ?, ?)')
           .run(ticketId, 'aperto', userId);
 
-        // Atomic: if any attachment insert fails, the whole transaction rolls back
-        if (uploadedFiles.length > 0) {
-            try {
-                insertAttachmentsTx(ticketId, uploadedFiles);
-            } catch (txErr) {
-                // Rollback already handled by better-sqlite3; clean up files from disk
-                uploadedFiles.forEach(f => {
-                    try { fs.unlinkSync(f.path); } catch {}
-                });
-                throw txErr;
-            }
-        }
-
         res.json({ success: true, ticketId });
 
-        // Send emails after responding so the client isn't blocked
         const creator = db.prepare('SELECT email, first_name FROM users WHERE id = ?').get(userId);
         if (creator) {
             await sendEmailNotification(
@@ -120,14 +65,11 @@ router.post('/', requireAuth, runUpload, async (req, res) => {
             }
         }
     } catch (err) {
-        console.error(`[${new Date().toISOString()}] create ticket error:`, err.message);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Errore durante la creazione del ticket.' });
-        }
+        if (!res.headersSent) res.status(500).json({ error: 'Errore durante la creazione del ticket.' });
     }
 });
 
-// Get Tickets (Dashboard) — with pagination
+// Get Tickets (Dashboard)
 router.get('/', requireAuth, (req, res) => {
     const userId = req.session.userId;
     const role   = req.session.role;
@@ -176,7 +118,6 @@ router.get('/', requireAuth, (req, res) => {
         const tickets = db.prepare(queryStr).all(...params);
         res.json(tickets);
     } catch (err) {
-        console.error(`[${new Date().toISOString()}] get tickets error:`, err.message);
         res.status(500).json({ error: 'Impossibile caricare i ticket.' });
     }
 });
@@ -211,19 +152,17 @@ router.get('/:id', requireAuth, (req, res) => {
         if (role === 'utente') commentsQuery += ' AND c.is_internal = 0';
         commentsQuery += ' ORDER BY c.created_at ASC';
 
-        const comments    = db.prepare(commentsQuery).all(ticketId);
-        const history     = db.prepare(`
+        const comments = db.prepare(commentsQuery).all(ticketId);
+        const history  = db.prepare(`
             SELECT h.*, u.first_name || ' ' || u.last_name as username
             FROM status_history h
             JOIN users u ON h.changed_by = u.id
             WHERE h.ticket_id = ?
             ORDER BY h.changed_at ASC
         `).all(ticketId);
-        const attachments = db.prepare('SELECT * FROM attachments WHERE ticket_id = ?').all(ticketId);
 
-        res.json({ ticket, comments, history, attachments });
+        res.json({ ticket, comments, history });
     } catch (err) {
-        console.error(`[${new Date().toISOString()}] get ticket error:`, err.message);
         res.status(500).json({ error: 'Impossibile recuperare i dettagli del ticket.' });
     }
 });
@@ -276,7 +215,6 @@ router.post('/:id/comments', requireAuth, async (req, res) => {
             }
         }
     } catch (err) {
-        console.error(`[${new Date().toISOString()}] add comment error:`, err.message);
         if (!res.headersSent) res.status(500).json({ error: 'Impossibile aggiungere il commento.' });
     }
 });
@@ -346,19 +284,8 @@ router.put('/:id/status', requireAuth, async (req, res) => {
             }
         }
     } catch (err) {
-        console.error(`[${new Date().toISOString()}] update status error:`, err.message);
         if (!res.headersSent) res.status(500).json({ error: 'Impossibile aggiornare lo stato.' });
     }
-});
-
-// Router-level error handler — catches Multer errors and any other route errors,
-// returning JSON instead of Express 5's default HTML error page
-router.use((err, req, res, next) => {
-    const status = err.status || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
-    const message = err.code === 'LIMIT_FILE_SIZE'
-        ? 'File troppo grande. Dimensione massima: 5 MB'
-        : (err.message || 'Errore del server');
-    if (!res.headersSent) res.status(status).json({ error: message });
 });
 
 module.exports = router;

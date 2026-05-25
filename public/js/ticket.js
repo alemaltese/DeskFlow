@@ -220,23 +220,7 @@ function renderTicket(data) {
         historyList.appendChild(div);
     });
 
-    // Attachments — escape original_name to prevent XSS in alt/link text
-    const attachmentsContainer = document.getElementById('attachmentsContainer');
-    if (data.attachments?.length > 0) {
-        attachmentsContainer.classList.remove('hidden');
-        document.getElementById('attachmentsList').innerHTML = data.attachments.map(att => {
-            const url      = `/uploads/${esc(att.filename)}`;
-            const safeName = esc(att.original_name);
-            if (/\.(jpg|jpeg|png|gif)$/i.test(att.original_name)) {
-                return `<a href="${url}" target="_blank" style="display:block;border:1px solid #cbd5e1;border-radius:var(--r);padding:.25rem;">
-                    <img src="${url}" alt="${safeName}" style="height:60px;width:auto;border-radius:var(--r-sm);">
-                </a>`;
-            }
-            return `<a href="${url}" target="_blank" class="btn btn-secondary" style="font-size:.875rem;">📎 ${safeName}</a>`;
-        }).join('');
-    } else {
-        attachmentsContainer.classList.add('hidden');
-    }
+    document.getElementById('attachmentsContainer')?.classList.add('hidden');
 }
 
 async function updateStatus(newStatus) {
